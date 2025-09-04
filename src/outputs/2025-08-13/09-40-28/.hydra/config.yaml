@@ -1,0 +1,38 @@
+match:
+  device: cuda:6
+  batch_size: 10
+  inference_size:
+  - 600
+  - 400
+  matcher_weights: /home/g.nikolaev/petroscope/petroscope/panoramas/weights/loftr_outdoor.ckpt
+align:
+  transformation_type: affine
+  confidence_tr: 0.95
+  min_inliers: 5
+  max_inliers: 30
+  min_inlier_rate: 0.0
+  reproj_tr: 1.0
+  n_recenterings: 5
+  use_BA: true
+compose:
+  use_gain_comp: true
+  use_graphcut: true
+  use_blending: true
+gain_comp:
+  save_mean_color: true
+graphcut:
+  coarse_scale: 4
+  fine_scale: 16
+  lane_width: 200
+blending:
+  n_levels: 7
+dirs:
+  tiles_dir: /home/g.nikolaev/data/metal_tiles
+  cache_dir: /home/g.nikolaev/data/metal_cache
+  panoramas_dir: /home/g.nikolaev/data/metal_panoramas
+log:
+  detailed_log: true
+vizualization:
+  draw_inliers: false
+load_matches: true
+stitching_mode: undistort_and_stitch_collage
