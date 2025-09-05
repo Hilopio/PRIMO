@@ -47,8 +47,8 @@ vizualization:
   draw_inliers: False
   draw_connections: True
 
-load_matches: False
+load_matches: True
 custom_undistortion: False
 n_undistortions: 1
-stitching_mode: 'save_matches'
-# stitching_mode: 'collage'
+# stitching_mode: 'save_matches'
+stitching_mode: 'collage'

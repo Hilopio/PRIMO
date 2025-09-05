@@ -117,11 +117,12 @@ class Stitcher:
 
         return TileSet(order=order, images=images)
 
-    def _align(self, data: StitchingData, transformation_type: str = None,
-               confidence_tr: bool = None, min_inliers: int = None,
-               max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
-               n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
-               ) -> StitchingData:
+    def _old_align(
+        self, data: StitchingData, transformation_type: str = None,
+        confidence_tr: bool = None, min_inliers: int = None,
+        max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
+        n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
+    ) -> StitchingData:
         """
         Align a set of images using matching and transformation techniques.
         Args:
@@ -160,7 +161,7 @@ class Stitcher:
             logger.error(f"Alignment failed: {str(e)}")
             return None
 
-    def _smart_align(
+    def _align(
         self, data: StitchingData, transformation_type: str = None,
         confidence_tr: bool = None, min_inliers: int = None,
         max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
@@ -183,8 +184,28 @@ class Stitcher:
                 min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
             )
 
+            if data.num_dropped_images > 0:
+                logger.warning(f"Probably missing {data.num_dropped_images} images. Panorama may be not complete.")
+
+            optimizer = Optimizer(transformation_type, data)
+            vec = optimizer.homography_to_vec(optimizer.homographies)
+            error = optimizer.reprojection_error(vec)
+            error = (error**2).mean() ** 0.5
+            logger.debug(f"Initial error: {error}")
+
+            if error > 100:
+                logger.warning("Probably contains false connections. Panorama may be distorted.")
+
             if use_BA:
-                data = Optimizer(transformation_type, data).bundle_adjustment()
+                data = optimizer.bundle_adjustment()
+
+                vec = optimizer.homography_to_vec(optimizer.homographies)
+                error = optimizer.reprojection_error(vec)
+                error = (error**2).mean() ** 0.5
+                logger.debug(f"Optimized error: {error}")
+
+                if error > 10:
+                    logger.warning("Probably contains false connections. Panorama may be distorted.")
 
             data = translate_and_add_panorama_size(data)
             return data

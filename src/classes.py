@@ -131,6 +131,7 @@ class StitchingData:
     tile_set: TileSet
     matches: list[Match]
     reper_idx: int
+    num_dropped_images: int
     panorama_size: tuple
     canvas: np.ndarray
 

@@ -108,6 +108,7 @@ class Matcher:
             tile_set=tile_set,
             matches=matches,
             reper_idx=None,
+            num_dropped_images=None,
             panorama_size=None,
             canvas=None
         )

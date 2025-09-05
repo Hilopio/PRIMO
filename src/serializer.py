@@ -84,6 +84,7 @@ class Serializer:
             tile_set=tile_set,
             matches=matches,
             reper_idx=reper_idx,
+            num_dropped_images=None,
             panorama_size=panorama_size,
             canvas=canvas
         )

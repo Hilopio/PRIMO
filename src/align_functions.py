@@ -1,7 +1,7 @@
 from src.classes import StitchingData, Match, TileSet
 import numpy as np
 import cv2
-from logger import logger, log_time
+from logger import logger
 
 
 def find_homographies_and_inliers(
@@ -110,6 +110,7 @@ def find_homographies_and_inliers(
 
 
 def sequential_alignment(
+    data: StitchingData,
     Hs: list[list[np.ndarray | None]],
     num_inliers: np.ndarray
 ) -> tuple[list[np.ndarray | None], list[int], int]:
@@ -126,74 +127,44 @@ def sequential_alignment(
             - list[int]: List of indices of images in the order they were aligned.
             - int: Index of the reference image used as the starting point for alignment.
     """
-    n: int = len(Hs)
+    n = len(Hs)
     transforms: list[np.ndarray | None] = [None for _ in range(n)]
     query_idx: list[int] = list(range(n))
     target_idx: list[int] = []
 
     reper_idx = np.argmax(num_inliers.sum(axis=1))
-
     target_idx.append(reper_idx)
     query_idx.remove(reper_idx)
     transforms[reper_idx] = np.eye(3)
 
     while query_idx:
-        # a = num_inliers[np.ix_(query_idx, target_idx)]
         a = num_inliers[query_idx][:, target_idx]
-        curr: int = int(np.argmax(a.sum(axis=1)))
-        best_neighb: int = int(np.argmax(a[curr]))
+        curr = np.argmax(a.sum(axis=1))
+        best_neighb = np.argmax(a[curr])
 
-        if Hs[query_idx[curr]][target_idx[best_neighb]] is None:
+        i = query_idx[curr]
+        j = target_idx[best_neighb]
+
+        if Hs[i][j] is None:
             break
-            # assert num_inliers[query_idx[curr], target_idx[best_neighb]] == 0, (
-            #     f"None homography, matches = {num_inliers[query_idx[curr], target_idx[best_neighb]]}"
-            # )
-            # transforms[query_idx[curr]] = None
-            # query_idx.pop(curr)
-            # continue
-
-        H: np.ndarray = (
-            transforms[target_idx[best_neighb]]
-            @ Hs[query_idx[curr]][target_idx[best_neighb]]
-        )
+        H = transforms[j] @ Hs[i][j]
         H /= H[2, 2]
-        transforms[query_idx[curr]] = H
+
+        transforms[i] = H
         target_idx.append(query_idx[curr])
         query_idx.pop(curr)
 
-    if query_idx:
-        logger.warning(f"Disconnected components detected: {len(query_idx)} tiles not aligned.")
-
+    data.num_dropped_images = len(query_idx)
     return transforms, target_idx, reper_idx
 
 
-# def recentering_iteration(transforms, img_centers):
-#     warped_img_centers = []
-#     for center, H in zip(img_centers, transforms):
-#         new_center = H @ np.array([center[0], center[1], 1])
-#         new_center /= new_center[2]
-#         warped_img_centers.append(new_center[:2])
-#     warped_img_centers = np.array(warped_img_centers)
-
-#     x_min, x_max = np.min(warped_img_centers[:, 0]), np.max(warped_img_centers[:, 0])
-#     y_min, y_max = np.min(warped_img_centers[:, 1]), np.max(warped_img_centers[:, 1])
-#     panorama_center = np.array((0.5 * (x_min + x_max), 0.5 * (y_min + y_max)))
-
-#     new_pivot = np.argmin(((warped_img_centers - panorama_center) ** 2).mean(axis=1))
-
-#     inv_pivot_H = np.linalg.inv(transforms[new_pivot])
-#     new_transforms = []
-#     for H in transforms:
-#         new_H = inv_pivot_H @ H
-#         new_H /= new_H[2, 2]
-#         new_transforms.append(new_H)
-#     return new_transforms, new_pivot
-
 def recentering_iteration(transforms, img_centers):
-    homographies = np.array(transforms)  # shape: (n, 3, 3)
+    # homographies = np.array(transforms)  # shape: (n, 3, 3)
+    homographies = np.stack(transforms, axis=0)  # shape: (n, 3, 3)
     centers = np.column_stack((img_centers, np.ones(len(img_centers))))  # shape: (n, 3)
 
     warped = np.einsum('nij,nj->ni', homographies, centers)  # shape: (n, 3)
+
     warped /= warped[:, [2]]
     warped_img_centers = warped[:, :2]
 
@@ -205,7 +176,6 @@ def recentering_iteration(transforms, img_centers):
 
     inv_pivot_H = np.linalg.inv(transforms[new_pivot])  # shape: (3, 3)
     new_transforms = np.einsum('ij,njk->nik', inv_pivot_H, homographies)  # shape: (n, 3, 3)
-    # new_transforms /= new_transforms[:, [2], [2]]
     new_transforms /= new_transforms[:, 2, 2][:, None, None]
 
     # new_transforms = [t for t in new_transforms]
@@ -245,10 +215,10 @@ def recentering(tile_set, n_iterations):
     return homographies, reper_idx
 
 
-@log_time("Sequential alignment done for", logger)
-def matches_alignment(matches_data: StitchingData, transformation_type: str, confidence_tr: float, min_inliers: int,
-                      max_inliers: int, min_inliers_rate: float, reproj_tr: float, n_iterations: int
-                      ) -> StitchingData:
+def matches_alignment(
+    matches_data: StitchingData, transformation_type: str, confidence_tr: float, min_inliers: int,
+    max_inliers: int, min_inliers_rate: float, reproj_tr: float, n_iterations: int
+) -> StitchingData:
     """
     Find homographies between images based on matching data and perform alignment.
 
@@ -261,13 +231,13 @@ def matches_alignment(matches_data: StitchingData, transformation_type: str, con
     tile_set: TileSet = matches_data.tile_set
     matches: list[Match] = matches_data.matches
 
-    n = len(tile_set.images)
+    n = len(tile_set.order)
 
     # adaptive reprojection threshold
     orig_size = tile_set.images[tile_set.order[0]].orig_size
     w = orig_size[0]
     h = orig_size[1]
-    reproj_tr = np.sqrt(h * w) / 250
+    reproj_tr = np.sqrt(h * w) / 500
 
     Hs, inliers, num_inliers = find_homographies_and_inliers(
         matches,
@@ -279,11 +249,11 @@ def matches_alignment(matches_data: StitchingData, transformation_type: str, con
         min_inliers_rate,
         reproj_tr
     )
-    homographies, new_idx_order, reper_idx = sequential_alignment(Hs, num_inliers)
+    homographies, new_idx_order, reper_idx = sequential_alignment(matches_data, Hs, num_inliers)
 
-    homographies = [homographies[idx] for idx in new_idx_order]  # if homographies[i] is not None
+    homographies = [homographies[idx] for idx in new_idx_order]
     tile_set.order = [tile_set.order[idx] for idx in new_idx_order]
-    for id, H in zip(tile_set.order, homographies):
+    for id, H in zip(tile_set.order, homographies):  # это надо получше оформить, а то дублируется код
         tile_set.images[id].homography = H
 
     reverse_permute = {v: i for i, v in enumerate(new_idx_order)}
@@ -309,9 +279,10 @@ def matches_alignment(matches_data: StitchingData, transformation_type: str, con
         tile_set=tile_set,
         matches=inliers,
         reper_idx=reper_idx,
+        num_dropped_images=matches_data.num_dropped_images,
         panorama_size=None,
         canvas=None
-    )
+    )  # тоже надо переписать, возможно создание лишней сущности
 
 
 def find_translation_and_panorama_size(tile_set: TileSet) -> tuple[np.ndarray, tuple[int, int]]:
@@ -351,7 +322,6 @@ def find_translation_and_panorama_size(tile_set: TileSet) -> tuple[np.ndarray, t
     return T, panorama_size
 
 
-@log_time("Translation and adding panorama size done for", logger)
 def translate_and_add_panorama_size(data: StitchingData) -> StitchingData:
     """
     Finalize alignment by calculating panorama size and applying translation to transformations.
@@ -372,6 +342,7 @@ def translate_and_add_panorama_size(data: StitchingData) -> StitchingData:
         tile_set=tile_set,
         matches=data.matches,
         reper_idx=data.reper_idx,
+        num_dropped_images=data.num_dropped_images,
         panorama_size=panorama_size,
         canvas=None
     )
