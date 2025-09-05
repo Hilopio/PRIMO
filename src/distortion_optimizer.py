@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import StepLR
 from kornia.geometry.calibration import undistort_points
 
 from logger import logger, log_time
-from classes import StitchingData
+from src.classes import StitchingData
 
 
 class DistortionOptimizerBase(ABC):

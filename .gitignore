@@ -1,0 +1,9 @@
+*.log
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+__pycache__/

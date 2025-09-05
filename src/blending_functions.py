@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from typing import List, Tuple
-from classes import StitchingData, Panorama
+from src.classes import StitchingData, Panorama
 from logger import logger, log_time
 
 

@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from classes import StitchingData, Panorama
+from src.classes import StitchingData, Panorama
 
 borderValue = 0.0
 

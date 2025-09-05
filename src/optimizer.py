@@ -1,4 +1,4 @@
-from classes import StitchingData
+from src.classes import StitchingData
 import numpy as np
 from scipy.optimize import least_squares
 from logger import logger, log_time

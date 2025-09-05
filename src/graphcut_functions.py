@@ -3,8 +3,8 @@ import cv2
 import maxflow
 from logger import logger, log_time
 
-from utils import _warp
-from classes import StitchingData
+from src.utils import _warp
+from src.classes import StitchingData
 
 
 def diff(img1, img2):

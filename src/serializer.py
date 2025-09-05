@@ -1,4 +1,4 @@
-from classes import Tile, Match, StitchingData, TileSet
+from src.classes import Tile, Match, StitchingData, TileSet
 import json
 from pathlib import Path
 import numpy as np

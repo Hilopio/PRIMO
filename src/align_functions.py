@@ -1,4 +1,4 @@
-from classes import StitchingData, Match, TileSet
+from src.classes import StitchingData, Match, TileSet
 import numpy as np
 import cv2
 from logger import logger, log_time

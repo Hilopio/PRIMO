@@ -3,21 +3,21 @@ import shutil
 import numpy as np
 from logger import logger, log_time
 
-from classes import Tile, TileSet, StitchingData, Panorama
+from src.classes import Tile, TileSet, StitchingData, Panorama
 
-from matcher import Matcher
-from align_functions import matches_alignment, translate_and_add_panorama_size
-from optimizer import Optimizer
-from distortion_optimizer import DistortionOptimizer
-from collage_functions import make_collage, make_mosaic
+from src.matcher import Matcher
+from src.align_functions import matches_alignment, translate_and_add_panorama_size
+from src.optimizer import Optimizer
+from src.distortion_optimizer import DistortionOptimizer
+from src.collage_functions import make_collage, make_mosaic
 
-from gain_comp_functions import apply_gain_comp
-from graphcut_functions import apply_graphcut
-from blending_functions import apply_blending
+from src.gain_comp_functions import apply_gain_comp
+from src.graphcut_functions import apply_graphcut
+from src.blending_functions import apply_blending
 
-from serializer import Serializer
+from src.serializer import Serializer
 
-from utils import undistort_dir
+from src.utils import undistort_dir
 
 
 class Stitcher:
@@ -159,6 +159,23 @@ class Stitcher:
         except Exception as e:
             logger.error(f"Alignment failed: {str(e)}")
             return None
+
+    def _smart_align(
+        self, data: StitchingData, transformation_type: str = None,
+        confidence_tr: bool = None, min_inliers: int = None,
+        max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
+        n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
+    ) -> StitchingData:
+
+        transformation_type = transformation_type if transformation_type is not None else self.transformation_type
+        confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
+        min_inliers = min_inliers if min_inliers is not None else self.min_inliers
+        max_inliers = max_inliers if max_inliers is not None else self.max_inliers
+        min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
+        reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
+        n_recenterings = n_recenterings if n_recenterings is not None else self.n_recenterings
+        use_BA = use_BA if use_BA is not None else self.use_BA
+        detailed_log = detailed_log if detailed_log is not None else self.detailed_log
 
     def _compose(self, data: StitchingData, use_gain_comp: bool = True, use_graphcut: bool = True,
                  coarse_scale: int = None, fine_scale: int = None, lane_width: int = None,

@@ -4,7 +4,7 @@ import kornia.feature as KF
 import gc
 
 from logger import logger, log_time
-from classes import TileSet, StitchingData, Match
+from src.classes import TileSet, StitchingData, Match
 
 
 class Matcher:

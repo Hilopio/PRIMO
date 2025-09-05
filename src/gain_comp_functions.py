@@ -1,6 +1,6 @@
 import numpy as np
-from classes import StitchingData
-from utils import _warp
+from src.classes import StitchingData
+from src.utils import _warp
 from scipy.optimize import least_squares, Bounds
 from logger import logger, log_time
 

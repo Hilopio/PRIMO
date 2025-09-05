@@ -7,12 +7,12 @@ from itertools import product
 from typing import List, Tuple
 
 
-from matcher import Matcher
-from stitcher import Stitcher
-from serializer import Serializer
+from src.matcher import Matcher
+from src.stitcher import Stitcher
+from src.serializer import Serializer
 
-from align_functions import matches_alignment
-from distortion_optimizer import DistortionOptimizer, AffineDistortionOptimizer
+from src.align_functions import matches_alignment
+from src.distortion_optimizer import DistortionOptimizer, AffineDistortionOptimizer
 
 
 def process_datasets(
