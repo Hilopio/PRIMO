@@ -177,6 +177,22 @@ class Stitcher:
         use_BA = use_BA if use_BA is not None else self.use_BA
         detailed_log = detailed_log if detailed_log is not None else self.detailed_log
 
+        try:
+            data = matches_alignment(
+                data, transformation_type, confidence_tr,
+                min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
+            )
+
+            if use_BA:
+                data = Optimizer(transformation_type, data).bundle_adjustment()
+
+            data = translate_and_add_panorama_size(data)
+            return data
+
+        except Exception as e:
+            logger.error(f"Alignment failed: {str(e)}")
+            return None
+
     def _compose(self, data: StitchingData, use_gain_comp: bool = True, use_graphcut: bool = True,
                  coarse_scale: int = None, fine_scale: int = None, lane_width: int = None,
                  use_blending: bool = None,  n_levels: int = None, detailed_log: bool = None) -> Panorama:

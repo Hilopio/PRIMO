@@ -134,6 +134,10 @@ class StitchingData:
     panorama_size: tuple
     canvas: np.ndarray
 
+    # rmse: float
+    # tiles_droped: int
+    # num_inliers: int
+
     @property
     def images(self) -> dict[int, Tile]:
         """

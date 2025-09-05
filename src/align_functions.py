@@ -262,6 +262,13 @@ def matches_alignment(matches_data: StitchingData, transformation_type: str, con
     matches: list[Match] = matches_data.matches
 
     n = len(tile_set.images)
+
+    # adaptive reprojection threshold
+    orig_size = tile_set.images[tile_set.order[0]].orig_size
+    w = orig_size[0]
+    h = orig_size[1]
+    reproj_tr = np.sqrt(h * w) / 250
+
     Hs, inliers, num_inliers = find_homographies_and_inliers(
         matches,
         n,
