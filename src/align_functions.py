@@ -38,6 +38,7 @@ def find_homographies_and_inliers(
     num_inliers: np.ndarray = np.zeros((n, n), dtype=int)
 
     for matches_ij in matches:
+
         i = matches_ij.i
         j = matches_ij.j
         conf_mask = matches_ij.conf > confidence_threshold
@@ -46,6 +47,7 @@ def find_homographies_and_inliers(
         conf = matches_ij.conf[conf_mask]
 
         num_matches_ij = xy_i.shape[0]
+
         if num_matches_ij < min_inliers:
             continue
         match transformation_type:
@@ -78,8 +80,14 @@ def find_homographies_and_inliers(
 
         if num_inliers_ij / num_matches_ij < min_inliers_rate:
             continue
+        # print('-' * 20)
 
+        # print(len(Hs), len(Hs[0]))
+        # print(i, j)
         Hs[i][j] = H_ij
+
+        # print('+' * 20)
+
         try:
             Hs[j][i] = np.linalg.inv(H_ij)
             Hs[j][i] /= Hs[j][i][2, 2]
@@ -249,6 +257,7 @@ def matches_alignment(
         min_inliers_rate,
         reproj_tr
     )
+
     homographies, new_idx_order, reper_idx = sequential_alignment(matches_data, Hs, num_inliers)
 
     homographies = [homographies[idx] for idx in new_idx_order]

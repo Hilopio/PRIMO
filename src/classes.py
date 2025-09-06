@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import cv2
 import torch
+import copy
 
 
 @dataclass
@@ -83,6 +84,23 @@ class Tile:
 
         return self._tensor
 
+    def copy(self):
+        """
+        Create a deep copy of the Tile object.
+
+        Returns:
+            Tile: A new Tile object with deep copies of all attributes.
+        """
+        return Tile(
+            id=self.id,
+            img_path=self.img_path,
+            _image=np.copy(self._image) if self._image is not None else None,
+            orig_size=np.copy(self.orig_size),
+            homography=np.copy(self.homography),
+            gain=np.copy(self.gain),
+            _tensor=self._tensor.clone() if self._tensor is not None else None
+        )
+
 
 @dataclass
 class TileSet:
@@ -95,6 +113,18 @@ class TileSet:
     """
     order: list[int]
     images: dict[int, Tile]
+
+    def copy(self):
+        """
+        Create a deep copy of the TileSet object.
+
+        Returns:
+            TileSet: A new TileSet object with deep copies of all attributes.
+        """
+        return TileSet(
+            order=copy.deepcopy(self.order),
+            images={k: v.copy() for k, v in self.images.items()}
+        )
 
 
 @dataclass
@@ -114,6 +144,21 @@ class Match:
     xy_i: np.ndarray
     xy_j: np.ndarray
     conf: np.ndarray
+
+    def copy(self):
+        """
+        Create a deep copy of the Match object.
+
+        Returns:
+            Match: A new Match object with deep copies of all attributes.
+        """
+        return Match(
+            i=self.i,
+            j=self.j,
+            xy_i=np.copy(self.xy_i),
+            xy_j=np.copy(self.xy_j),
+            conf=np.copy(self.conf)
+        )
 
 
 @dataclass
@@ -135,9 +180,21 @@ class StitchingData:
     panorama_size: tuple
     canvas: np.ndarray
 
-    # rmse: float
-    # tiles_droped: int
-    # num_inliers: int
+    def copy(self):
+        """
+        Create a deep copy of the StitchingData object.
+
+        Returns:
+            StitchingData: A new StitchingData object with deep copies of all attributes.
+        """
+        return StitchingData(
+            tile_set=self.tile_set.copy(),
+            matches=[m.copy() for m in self.matches],
+            reper_idx=self.reper_idx,
+            num_dropped_images=self.num_dropped_images,
+            panorama_size=copy.deepcopy(self.panorama_size),
+            canvas=np.copy(self.canvas) if self.canvas is not None else None
+        )
 
     @property
     def images(self) -> dict[int, Tile]:

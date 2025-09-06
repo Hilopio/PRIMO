@@ -161,16 +161,74 @@ class Stitcher:
             logger.error(f"Alignment failed: {str(e)}")
             return None
 
+    # def _align(
+    #     self, data: StitchingData, transformation_type: str = None,
+    #     confidence_tr: bool = None, min_inliers: int = None,
+    #     max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
+    #     n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
+    # ) -> StitchingData:
+
+        # transformation_type = transformation_type if transformation_type is not None else self.transformation_type
+        # confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
+        # min_inliers = min_inliers if min_inliers is not None else self.min_inliers
+        # max_inliers = max_inliers if max_inliers is not None else self.max_inliers
+        # min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
+        # reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
+        # n_recenterings = n_recenterings if n_recenterings is not None else self.n_recenterings
+        # use_BA = use_BA if use_BA is not None else self.use_BA
+        # detailed_log = detailed_log if detailed_log is not None else self.detailed_log
+
+        # try:
+        #     data = matches_alignment(
+        #         data, transformation_type, confidence_tr,
+        #         min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
+        #     )
+
+        #     if data.num_dropped_images > 0:
+        #         logger.warning(f"Probably missing {data.num_dropped_images} images. Panorama may be not complete.")
+
+        #     optimizer = Optimizer(transformation_type, data)
+        #     vec = optimizer.homography_to_vec(optimizer.homographies)
+        #     error = optimizer.reprojection_error(vec)
+        #     error = (error**2).mean() ** 0.5
+        #     logger.debug(f"Initial error: {error}")
+
+        #     if error > 100:
+        #         logger.warning("Probably contains false connections. Panorama may be distorted.")
+
+        #     if use_BA:
+        #         data = optimizer.bundle_adjustment()
+
+        #         vec = optimizer.homography_to_vec(optimizer.homographies)
+        #         error = optimizer.reprojection_error(vec)
+        #         error = (error**2).mean() ** 0.5
+        #         logger.debug(f"Optimized error: {error}")
+
+        #         if error > 10:
+        #             logger.warning("Probably contains false connections. Panorama may be distorted.")
+
+        #     data = translate_and_add_panorama_size(data)
+        #     return data
+
+        # except Exception as e:
+        #     logger.error(f"Alignment failed: {str(e)}")
+        #     return None
+
     def _align(
         self, data: StitchingData, transformation_type: str = None,
         confidence_tr: bool = None, min_inliers: int = None,
         max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
         n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
     ) -> StitchingData:
+        # Thresholds
+        INITIAL_ERROR_THRESHOLD = 100
+        OPTIMIZED_ERROR_THRESHOLD = 10
+        MAX_DROPPED_TILES = 10
 
         transformation_type = transformation_type if transformation_type is not None else self.transformation_type
         confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
-        min_inliers = min_inliers if min_inliers is not None else self.min_inliers
+        # min_inliers will be handled adaptively, but allow override
+        default_min_inliers = min_inliers if min_inliers is not None else self.min_inliers
         max_inliers = max_inliers if max_inliers is not None else self.max_inliers
         min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
         reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
@@ -178,41 +236,134 @@ class Stitcher:
         use_BA = use_BA if use_BA is not None else self.use_BA
         detailed_log = detailed_log if detailed_log is not None else self.detailed_log
 
-        try:
-            data = matches_alignment(
-                data, transformation_type, confidence_tr,
-                min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
-            )
+        # Adaptive min_inliers logic
+        attempts = {}
+        current_min_inliers = default_min_inliers  # Start with default, e.g., 32
+        steps = [16, 8, 4]  # Step sizes for adjustments
+        max_attempts = len(steps) + 1  # Initial + 3 adjustments
 
-            if data.num_dropped_images > 0:
-                logger.warning(f"Probably missing {data.num_dropped_images} images. Panorama may be not complete.")
+        for attempt in range(max_attempts):
+            try:
+                # Log the current min_inliers value
+                logger.debug(f"Attempting alignment with min_inliers={current_min_inliers}")
 
-            optimizer = Optimizer(transformation_type, data)
-            vec = optimizer.homography_to_vec(optimizer.homographies)
-            error = optimizer.reprojection_error(vec)
-            error = (error**2).mean() ** 0.5
-            logger.debug(f"Initial error: {error}")
+                # Perform matches_alignment with current min_inliers
+                temp_data = matches_alignment(
+                    data.copy(),  # Use deep copy to avoid modifying original
+                    transformation_type, confidence_tr,
+                    current_min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
+                )
 
-            if error > 100:
-                logger.warning("Probably contains false connections. Panorama may be distorted.")
+                if temp_data.num_dropped_images > 0:
+                    logger.warning(
+                        f"Probably missing {temp_data.num_dropped_images} images. Panorama may be not complete."
+                    )
 
-            if use_BA:
-                data = optimizer.bundle_adjustment()
-
+                optimizer = Optimizer(transformation_type, temp_data)
                 vec = optimizer.homography_to_vec(optimizer.homographies)
                 error = optimizer.reprojection_error(vec)
-                error = (error**2).mean() ** 0.5
-                logger.debug(f"Optimized error: {error}")
+                error = (error ** 2).mean() ** 0.5  # Assuming this is the intended calculation
+                logger.debug(f"Initial error: {error}")
 
-                if error > 10:
+                if error > INITIAL_ERROR_THRESHOLD:
                     logger.warning("Probably contains false connections. Panorama may be distorted.")
 
-            data = translate_and_add_panorama_size(data)
-            return data
+                if use_BA:
+                    temp_data = optimizer.bundle_adjustment()
+                    vec = optimizer.homography_to_vec(optimizer.homographies)
+                    error = optimizer.reprojection_error(vec)
+                    error = (error ** 2).mean() ** 0.5
+                    logger.debug(f"Optimized error: {error}")
 
-        except Exception as e:
-            logger.error(f"Alignment failed: {str(e)}")
-            return None
+                    if error > OPTIMIZED_ERROR_THRESHOLD:
+                        logger.warning("Probably contains false connections. Panorama may be distorted.")
+
+                # Determine thresholds based on whether BA was used
+                error_threshold = OPTIMIZED_ERROR_THRESHOLD if use_BA else INITIAL_ERROR_THRESHOLD
+
+                # Check success conditions
+                if temp_data.num_dropped_images == 0 and error <= error_threshold:
+                    temp_data = translate_and_add_panorama_size(temp_data)
+                    return temp_data  # Success, return this data
+
+                # If not successful, store the attempt
+                attempts[current_min_inliers] = (temp_data.num_dropped_images, error, temp_data)
+
+                # If this was the last attempt, break and select best later
+                if attempt == max_attempts - 1:
+                    break
+
+                # Determine adjustment direction
+                has_dropped = temp_data.num_dropped_images > 0
+                has_high_error = error > error_threshold
+
+                step = steps[attempt]  # Current step size
+
+                if has_high_error:
+                    # Priority to increase if high error
+                    current_min_inliers += step
+                elif has_dropped:
+                    # Decrease if dropped but no high error
+                    current_min_inliers -= step
+                else:
+                    # Unreachable case since conditions failed
+                    raise RuntimeError(
+                        "Unexpected state: no high error and no dropped tiles, yet success conditions not met."
+                    )
+
+                # Clamp min_inliers to reasonable bounds, e.g., min 4
+                current_min_inliers = max(4, current_min_inliers)
+
+            except Exception as e:
+                logger.error(f"Alignment attempt with min_inliers={current_min_inliers} failed: {str(e)}")
+                # Continue to next attempt or handle as failure
+
+        # If no successful attempt, select best from attempts
+        if attempts:
+            # Rule 1: Filter attempts with error below threshold
+            error_threshold = OPTIMIZED_ERROR_THRESHOLD if use_BA else INITIAL_ERROR_THRESHOLD
+            valid_attempts = {
+                k: v for k, v in attempts.items() if v[1] <= error_threshold
+            }
+
+            if valid_attempts:
+                # Choose attempt with minimum dropped tiles; if equal, max min_inliers
+                best_key = min(
+                    valid_attempts,
+                    key=lambda k: (valid_attempts[k][0], -k)  # Minimize dropped, maximize min_inliers
+                )
+                best_data = valid_attempts[best_key][2]
+                best_data = translate_and_add_panorama_size(best_data)
+                logger.warning(
+                    f"Selected best attempt with min_inliers={best_key}, \
+                    dropped={valid_attempts[best_key][0]}, \
+                    error={valid_attempts[best_key][1]}"
+                )
+                return best_data
+
+            # Rule 2: If all errors >= threshold, select where dropped <= MAX_DROPPED_TILES and max min_inliers
+            valid_attempts = {
+                k: v for k, v in attempts.items() if v[0] <= MAX_DROPPED_TILES
+            }
+            if valid_attempts:
+                best_key = max(valid_attempts, key=lambda k: k)  # Maximize min_inliers
+                best_data = valid_attempts[best_key][2]
+                best_data = translate_and_add_panorama_size(best_data)
+                logger.warning(
+                    f"Selected best attempt with min_inliers={best_key}, \
+                    dropped={valid_attempts[best_key][0]}, \
+                    error={valid_attempts[best_key][1]}"
+                )
+                return best_data
+
+            # Rule 3: Fallback to min_inliers=32
+            if 32 in attempts:
+                best_data = attempts[32][2]
+                best_data = translate_and_add_panorama_size(best_data)
+                logger.error("All panoramas poor; returning default with min_inliers=32.")
+                return best_data
+
+        raise RuntimeError("All alignment attempts failed; no valid panorama could be constructed.")
 
     def _compose(self, data: StitchingData, use_gain_comp: bool = True, use_graphcut: bool = True,
                  coarse_scale: int = None, fine_scale: int = None, lane_width: int = None,
