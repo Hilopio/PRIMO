@@ -4,7 +4,7 @@ import time
 logger.remove()
 
 logger.add(
-    "petroscope.log",
+    "stitchify.log",
     # format="<green>{time}</green> <level>{level}</level> <cyan>{message}</cyan>",
     rotation="10 MB",
     level="DEBUG"
