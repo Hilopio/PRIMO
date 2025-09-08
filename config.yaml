@@ -10,7 +10,7 @@ align:
   min_inliers: 32
   max_inliers: 40
   min_inlier_rate: 0.0
-  reproj_tr: 1.0
+  reproj_tr: 1.0  # уже устарело, он адаптивный, надо только это Правильно закодить
   n_recenterings: 25
   use_BA: True
 
@@ -47,8 +47,9 @@ vizualization:
   draw_inliers: False
   draw_connections: True
 
-load_matches: True
-custom_undistortion: False
+load_matches: False
+custom_undistortion: True
 n_undistortions: 1
 # stitching_mode: 'save_matches'
 stitching_mode: 'collage'
+# adaptive_alignment: True

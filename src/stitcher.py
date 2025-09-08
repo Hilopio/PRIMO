@@ -99,10 +99,10 @@ class Stitcher:
 
             img_paths.sort(key=lambda x: x.name)
 
-            order, images = [], []
+            order, images = [], {}
             for id, path in enumerate(img_paths):
                 order.append(id)
-                images.append(Tile(
+                images[id] = Tile(
                     id=id,
                     img_path=path,
                     _image=None,
@@ -110,7 +110,7 @@ class Stitcher:
                     orig_size=None,
                     homography=None,
                     gain=None
-                ))
+                )
         except Exception as e:
             logger.error(f"Error parsing directory: {e}")
             return None
@@ -161,59 +161,6 @@ class Stitcher:
             logger.error(f"Alignment failed: {str(e)}")
             return None
 
-    # def _align(
-    #     self, data: StitchingData, transformation_type: str = None,
-    #     confidence_tr: bool = None, min_inliers: int = None,
-    #     max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
-    #     n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
-    # ) -> StitchingData:
-
-        # transformation_type = transformation_type if transformation_type is not None else self.transformation_type
-        # confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
-        # min_inliers = min_inliers if min_inliers is not None else self.min_inliers
-        # max_inliers = max_inliers if max_inliers is not None else self.max_inliers
-        # min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
-        # reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
-        # n_recenterings = n_recenterings if n_recenterings is not None else self.n_recenterings
-        # use_BA = use_BA if use_BA is not None else self.use_BA
-        # detailed_log = detailed_log if detailed_log is not None else self.detailed_log
-
-        # try:
-        #     data = matches_alignment(
-        #         data, transformation_type, confidence_tr,
-        #         min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
-        #     )
-
-        #     if data.num_dropped_images > 0:
-        #         logger.warning(f"Probably missing {data.num_dropped_images} images. Panorama may be not complete.")
-
-        #     optimizer = Optimizer(transformation_type, data)
-        #     vec = optimizer.homography_to_vec(optimizer.homographies)
-        #     error = optimizer.reprojection_error(vec)
-        #     error = (error**2).mean() ** 0.5
-        #     logger.debug(f"Initial error: {error}")
-
-        #     if error > 100:
-        #         logger.warning("Probably contains false connections. Panorama may be distorted.")
-
-        #     if use_BA:
-        #         data = optimizer.bundle_adjustment()
-
-        #         vec = optimizer.homography_to_vec(optimizer.homographies)
-        #         error = optimizer.reprojection_error(vec)
-        #         error = (error**2).mean() ** 0.5
-        #         logger.debug(f"Optimized error: {error}")
-
-        #         if error > 10:
-        #             logger.warning("Probably contains false connections. Panorama may be distorted.")
-
-        #     data = translate_and_add_panorama_size(data)
-        #     return data
-
-        # except Exception as e:
-        #     logger.error(f"Alignment failed: {str(e)}")
-        #     return None
-
     def _align(
         self, data: StitchingData, transformation_type: str = None,
         confidence_tr: bool = None, min_inliers: int = None,
@@ -244,79 +191,63 @@ class Stitcher:
 
         for attempt in range(max_attempts):
             try:
-                # Log the current min_inliers value
-                logger.debug(f"Attempting alignment with min_inliers={current_min_inliers}")
 
-                # Perform matches_alignment with current min_inliers
                 temp_data = matches_alignment(
                     data.copy(),  # Use deep copy to avoid modifying original
                     transformation_type, confidence_tr,
                     current_min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
                 )
 
-                if temp_data.num_dropped_images > 0:
-                    logger.warning(
-                        f"Probably missing {temp_data.num_dropped_images} images. Panorama may be not complete."
-                    )
-
                 optimizer = Optimizer(transformation_type, temp_data)
                 vec = optimizer.homography_to_vec(optimizer.homographies)
                 error = optimizer.reprojection_error(vec)
-                error = (error ** 2).mean() ** 0.5  # Assuming this is the intended calculation
+                error = (error ** 2).mean() ** 0.5
                 logger.debug(f"Initial error: {error}")
-
-                if error > INITIAL_ERROR_THRESHOLD:
-                    logger.warning("Probably contains false connections. Panorama may be distorted.")
 
                 if use_BA:
                     temp_data = optimizer.bundle_adjustment()
                     vec = optimizer.homography_to_vec(optimizer.homographies)
                     error = optimizer.reprojection_error(vec)
                     error = (error ** 2).mean() ** 0.5
-                    logger.debug(f"Optimized error: {error}")
+                    logger.debug(f"Optimized error: {error}")  # переписать красиво подсчет ошибки
 
-                    if error > OPTIMIZED_ERROR_THRESHOLD:
-                        logger.warning("Probably contains false connections. Panorama may be distorted.")
-
-                # Determine thresholds based on whether BA was used
                 error_threshold = OPTIMIZED_ERROR_THRESHOLD if use_BA else INITIAL_ERROR_THRESHOLD
-
-                # Check success conditions
-                if temp_data.num_dropped_images == 0 and error <= error_threshold:
-                    temp_data = translate_and_add_panorama_size(temp_data)
-                    return temp_data  # Success, return this data
-
-                # If not successful, store the attempt
-                attempts[current_min_inliers] = (temp_data.num_dropped_images, error, temp_data)
-
-                # If this was the last attempt, break and select best later
-                if attempt == max_attempts - 1:
-                    break
-
-                # Determine adjustment direction
                 has_dropped = temp_data.num_dropped_images > 0
                 has_high_error = error > error_threshold
 
-                step = steps[attempt]  # Current step size
+                # retry log warning
+                if attempt == 0 and (has_dropped or has_high_error):
+                    log = ''
+                    if has_dropped:
+                        log += f"Probably missing {temp_data.num_dropped_images} images. Panorama may be not complete. "
+
+                    if has_high_error:
+                        log += "Probably contains false connections. Panorama may be distorted. "
+
+                    log += 'Using adaptive strictness.'
+                    logger.warning(log)
+
+                if not has_dropped and not has_high_error:
+                    temp_data = translate_and_add_panorama_size(temp_data)
+                    return temp_data
+
+                attempts[current_min_inliers] = (temp_data.num_dropped_images, error, temp_data)
+
+                if attempt == max_attempts - 1:
+                    break
+
+                step = steps[attempt]
 
                 if has_high_error:
-                    # Priority to increase if high error
                     current_min_inliers += step
-                elif has_dropped:
-                    # Decrease if dropped but no high error
-                    current_min_inliers -= step
                 else:
-                    # Unreachable case since conditions failed
-                    raise RuntimeError(
-                        "Unexpected state: no high error and no dropped tiles, yet success conditions not met."
-                    )
+                    current_min_inliers -= step
 
                 # Clamp min_inliers to reasonable bounds, e.g., min 4
                 current_min_inliers = max(4, current_min_inliers)
 
             except Exception as e:
                 logger.error(f"Alignment attempt with min_inliers={current_min_inliers} failed: {str(e)}")
-                # Continue to next attempt or handle as failure
 
         # If no successful attempt, select best from attempts
         if attempts:
