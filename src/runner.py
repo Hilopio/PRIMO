@@ -1,6 +1,6 @@
 from src.stitcher import Stitcher
 from pathlib import Path
-from logger import logger, log_time
+from src.logger import logger, log_time
 from tqdm import tqdm
 
 

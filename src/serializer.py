@@ -108,6 +108,7 @@ class Serializer:
 
         return {
             "order": tile_set.order,
+            "rowcol": tile_set.rowcol,
             "images": tiles_dict
         }
 
@@ -125,7 +126,7 @@ class Serializer:
                 gain=self._load_array(base_path / "tiles" / tile_data["gain"])
             )
 
-        return TileSet(order=tile_set_data["order"], images=tiles)
+        return TileSet(order=tile_set_data["order"], rowcol=tile_set_data["rowcol"], images=tiles)
 
     def _serialize_matches(self, matches: list[Match], base_path: Path) -> list:
         """Serialize a list of Match objects."""

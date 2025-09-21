@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from typing import List, Tuple
 from src.classes import StitchingData, Panorama
-from logger import logger, log_time
+from src.logger import logger, log_time
 
 
 def multi_band_blending(

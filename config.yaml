@@ -5,14 +5,20 @@ match:
   matcher_weights: '/home/g.nikolaev/petroscope/petroscope/panoramas/weights/loftr_outdoor.ckpt'
 
 align:
-  transformation_type: 'affine'  # 'affine' or 'projective'
-  confidence_tr: 0.5
-  min_inliers: 32
-  max_inliers: 40
-  min_inlier_rate: 0.0
-  reproj_tr: 1.0  # уже устарело, он адаптивный, надо только это Правильно закодить
-  n_recenterings: 25
-  use_BA: True
+  transformation_type: 'affine'
+  confidence_threshold: 0.7
+  min_inliers_for_accept: 32
+  max_used_inliers: 64
+  relative_reproj_threshold: 0.002  # 0.002 is 1 pixel rmse for a 500x500 image
+  max_recenter_iterations: 25
+  use_bundle_adjustment: True
+  adaptive: True
+
+  # Refinement if adaptive is True
+  initial_error_threshold: 100
+  optimized_error_threshold: 10
+  max_dropped_tiles: 10
+  min_inliers_refinement_steps: [16, 8, 4]
 
 compose:
   use_gain_comp: True
@@ -30,26 +36,53 @@ graphcut:
 blending:
   n_levels: 7
 
-dirs:
-  tiles_dir: "/home/g.nikolaev/data/tiles"
-  cache_dir: "/home/g.nikolaev/data/cache"
-  panoramas_dir: "/home/g.nikolaev/data/panoramas"
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/tiles"
+#   cache_dir: "/home/g.nikolaev/data/cache"
+#   panoramas_dir: "/home/g.nikolaev/data/panoramas"
+
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/geology_tiles"
+#   cache_dir: "/home/g.nikolaev/data/geology_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/geology_panoramas"
 
 # dirs:
 #   tiles_dir: "/home/g.nikolaev/data/new_tiles"
 #   cache_dir: "/home/g.nikolaev/data/new_cache"
 #   panoramas_dir: "/home/g.nikolaev/data/new_panoramas"
 
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/hb_tiles"
+#   cache_dir: "/home/g.nikolaev/data/hb_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/hb_panoramas"
+
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/new_metal_tiles"
+#   cache_dir: "/home/g.nikolaev/data/new_metal_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/new_metal_panoramas"
+
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/HISTOBREAST_tiles"
+#   cache_dir: "/home/g.nikolaev/data/HISTOBREAST_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/HISTOBREAST_panoramas"
+
+dirs:
+  tiles_dir: "/home/g.nikolaev/data/LS_big_tiles"
+  cache_dir: "/home/g.nikolaev/data/LS_big_cache"
+  panoramas_dir: "/home/g.nikolaev/data/LS_big_panoramas"
+
 log:
   detailed_log: True
 
 vizualization:
   draw_inliers: False
-  draw_connections: True
+  draw_connections: False
 
+use_grid_info: True
 load_matches: False
 custom_undistortion: True
 n_undistortions: 1
 # stitching_mode: 'save_matches'
-stitching_mode: 'collage'
+# stitching_mode: 'collage'
+stitching_mode: 'full'
 # adaptive_alignment: True

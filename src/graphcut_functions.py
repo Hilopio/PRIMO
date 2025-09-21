@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import maxflow
-from logger import logger, log_time
+from src.logger import logger, log_time
 
 from src.utils import _warp
 from src.classes import StitchingData

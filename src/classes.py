@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -7,6 +7,8 @@ import matplotlib.cm as cm
 import cv2
 import torch
 import copy
+
+from typing import Literal
 
 
 @dataclass
@@ -112,6 +114,7 @@ class TileSet:
         images (dict[int, ImageStructure]): Dictionary mapping image IDs to their ImageStructure objects.
     """
     order: list[int]
+    rowcol: dict[int, tuple[int, int]]
     images: dict[int, Tile]
 
     def copy(self):
@@ -123,8 +126,36 @@ class TileSet:
         """
         return TileSet(
             order=copy.deepcopy(self.order),
+            rowcol=copy.deepcopy(self.rowcol),
             images={k: v.copy() for k, v in self.images.items()}
         )
+
+
+@dataclass
+class AlignConfig:
+    transformation_type: Literal['affine', 'projective'] = 'affine'
+    confidence_threshold: float = 0.7
+    min_inliers_for_accept: int = 32
+    max_used_inliers: int = 64
+    relative_reproj_threshold: float = 0.002  # 1 pixel rmse for a 500x500 image
+    max_recenter_iterations: int = 25
+    use_bundle_adjustment: bool = True
+    adaptive: bool = True
+
+    # Refinement if adaptive is True
+    initial_error_threshold: float = 100
+    optimized_error_threshold: float = 10
+    max_dropped_tiles: int = 10
+    min_inliers_refinement_steps: tuple[int] = (16, 8, 4)
+
+    def __str__(self) -> str:
+        params = asdict(self)
+        max_len = max(len(k) for k in params)
+        lines = [f"{k.ljust(max_len)} = {v}" for k, v in params.items()]
+        return "\n".join(lines)
+
+    def copy(self) -> 'AlignConfig':
+        return replace(self)
 
 
 @dataclass

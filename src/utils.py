@@ -128,3 +128,13 @@ def undistort_dir(
         # Сохранение результата
         out_path = output_dir / img_path.name
         cv2.imwrite(str(out_path), undistorted)
+
+
+def _make_or_clean_dir(path: Path):
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+        return
+
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)

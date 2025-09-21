@@ -1,7 +1,7 @@
 from src.classes import StitchingData
 import numpy as np
 from scipy.optimize import least_squares
-from logger import logger, log_time
+from src.logger import logger, log_time
 from abc import ABC, abstractmethod
 
 
@@ -57,7 +57,7 @@ class OptimizerBase(ABC):
             OptimizeData: Data object containing optimized transformations and pivot index.
         """
         vec = self.homography_to_vec(self.homographies)
-        res_lm = least_squares(self.reprojection_error, vec, method="lm", xtol=1e-6, ftol=1e-6)
+        res_lm = least_squares(self.reprojection_error, vec, method="lm", xtol=1e-6, ftol=1e-3)
 
         new_vec = res_lm.x
         for i, id in enumerate(self.data.tile_set.order):

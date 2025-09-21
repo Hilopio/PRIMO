@@ -1,15 +1,14 @@
 from pathlib import Path
 import shutil
 import numpy as np
-from logger import logger, log_time
+from src.logger import logger, log_time
 
-from src.classes import Tile, TileSet, StitchingData, Panorama
+from src.classes import StitchingData, Panorama, AlignConfig
 
 from src.matcher import Matcher
-from src.align_functions import matches_alignment, translate_and_add_panorama_size
-from src.optimizer import Optimizer
-from src.distortion_optimizer import DistortionOptimizer
+from src.alignment import _align, _CUBA
 from src.collage_functions import make_collage, make_mosaic
+from src.tiles_parsing import _tiles_parsing
 
 from src.gain_comp_functions import apply_gain_comp
 from src.graphcut_functions import apply_graphcut
@@ -28,15 +27,15 @@ class Stitcher:
     like homography estimation, bundle adjustment, gain compensation, graphcut, and
     blending.
     """
-    def __init__(self, matcher: Matcher, load_matches: bool = False, transformation_type: str = "projective",
-                 confidence_tr: float = 0.95, min_inliers: int = 5,
-                 max_inliers: int = 30, min_inlier_rate: float = 0.0, reproj_tr: float = 1.0,
-                 n_recenterings: int = 5, use_BA: bool = True, save_mean_color: bool = True,
-                 coarse_scale: int = 4, fine_scale: int = 16, lane_width: int = 200, n_levels: int = 7,
-                 use_gain_comp: bool = True, use_graphcut: bool = True, use_blending: bool = True,
-                 detailed_log: bool = True, draw_inliers: bool = False, draw_connections: bool = False,
-                 custom_undistortion: bool = False, n_undistortions: int = 1, stitching_mode: str = "collage"
-                 ) -> None:
+    def __init__(
+        self, matcher: Matcher, load_matches: bool = False, align_cfg: AlignConfig = AlignConfig(),
+        save_mean_color: bool = True,
+        coarse_scale: int = 4, fine_scale: int = 16, lane_width: int = 200, n_levels: int = 7,
+        use_gain_comp: bool = True, use_graphcut: bool = True, use_blending: bool = True,
+        detailed_log: bool = True, draw_inliers: bool = False, draw_connections: bool = False,
+        use_grid_info: bool = False,
+        custom_undistortion: bool = False, n_undistortions: int = 1, stitching_mode: str = "collage"
+    ) -> None:
         """
         Initialize the Stitcher with a matcher object and configuration parameters.
         Args:
@@ -56,14 +55,7 @@ class Stitcher:
 
         self.load_matches = load_matches
 
-        self.transformation_type = transformation_type
-        self.confidence_tr = confidence_tr
-        self.min_inliers = min_inliers
-        self.max_inliers = max_inliers
-        self.min_inlier_rate = min_inlier_rate
-        self.reproj_tr = reproj_tr
-        self.n_recenterings = n_recenterings
-        self.use_BA = use_BA
+        self.align_cfg = align_cfg
 
         self.use_gain_comp = use_gain_comp
         self.use_graphcut = use_graphcut
@@ -77,224 +69,11 @@ class Stitcher:
         self.detailed_log = detailed_log
         self.draw_inliers = draw_inliers
         self.draw_connections = draw_connections
+
+        self.use_grid_info = use_grid_info
         self.custom_undistortion = custom_undistortion
         self.n_undistortions = n_undistortions
         self.stitching_mode = stitching_mode
-
-    def _parse_dir(self, dir_path: Path) -> TileSet:
-        """
-        Parse a directory to create an ImageSet object for image files.
-        Args:
-            dir_path (Path): Path to the directory containing image files.
-        Returns:
-            ImageSet: An ImageSet object containing the order and dictionary of
-                ImageStruct objects representing the images in the directory.
-        """
-        try:
-            img_paths = [
-                img_p
-                for img_p in dir_path.iterdir()
-                if img_p.suffix in (".jpg", ".png", ".tiff", ".tif", ".TIF")
-            ]
-
-            img_paths.sort(key=lambda x: x.name)
-
-            order, images = [], {}
-            for id, path in enumerate(img_paths):
-                order.append(id)
-                images[id] = Tile(
-                    id=id,
-                    img_path=path,
-                    _image=None,
-                    _tensor=None,
-                    orig_size=None,
-                    homography=None,
-                    gain=None
-                )
-        except Exception as e:
-            logger.error(f"Error parsing directory: {e}")
-            return None
-
-        return TileSet(order=order, images=images)
-
-    def _old_align(
-        self, data: StitchingData, transformation_type: str = None,
-        confidence_tr: bool = None, min_inliers: int = None,
-        max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
-        n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
-    ) -> StitchingData:
-        """
-        Align a set of images using matching and transformation techniques.
-        Args:
-            images (ImageSet): Set of images to be aligned, containing image data
-                and processing order.
-        Returns:
-            StitchingData: Data object containing alignment information,
-                including transformation matrices and panorama size.
-        Raises:
-            RuntimeError: If the alignment process fails due to issues in
-                matching, homography estimation, or bundle adjustment.
-        """
-        transformation_type = transformation_type if transformation_type is not None else self.transformation_type
-        confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
-        min_inliers = min_inliers if min_inliers is not None else self.min_inliers
-        max_inliers = max_inliers if max_inliers is not None else self.max_inliers
-        min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
-        reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
-        n_recenterings = n_recenterings if n_recenterings is not None else self.n_recenterings
-        use_BA = use_BA if use_BA is not None else self.use_BA
-        detailed_log = detailed_log if detailed_log is not None else self.detailed_log
-
-        try:
-            data = matches_alignment(
-                data, transformation_type, confidence_tr,
-                min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
-            )
-
-            if use_BA:
-                data = Optimizer(transformation_type, data).bundle_adjustment()
-
-            data = translate_and_add_panorama_size(data)
-            return data
-
-        except Exception as e:
-            logger.error(f"Alignment failed: {str(e)}")
-            return None
-
-    def _align(
-        self, data: StitchingData, transformation_type: str = None,
-        confidence_tr: bool = None, min_inliers: int = None,
-        max_inliers: int = None, min_inlier_rate: float = None, reproj_tr: float = None,
-        n_recenterings: int = None, use_BA: bool = None, detailed_log: bool = None
-    ) -> StitchingData:
-        # Thresholds
-        INITIAL_ERROR_THRESHOLD = 100
-        OPTIMIZED_ERROR_THRESHOLD = 10
-        MAX_DROPPED_TILES = 10
-
-        transformation_type = transformation_type if transformation_type is not None else self.transformation_type
-        confidence_tr = confidence_tr if confidence_tr is not None else self.confidence_tr
-        # min_inliers will be handled adaptively, but allow override
-        default_min_inliers = min_inliers if min_inliers is not None else self.min_inliers
-        max_inliers = max_inliers if max_inliers is not None else self.max_inliers
-        min_inlier_rate = min_inlier_rate if min_inlier_rate is not None else self.min_inlier_rate
-        reproj_tr = reproj_tr if reproj_tr is not None else self.reproj_tr
-        n_recenterings = n_recenterings if n_recenterings is not None else self.n_recenterings
-        use_BA = use_BA if use_BA is not None else self.use_BA
-        detailed_log = detailed_log if detailed_log is not None else self.detailed_log
-
-        # Adaptive min_inliers logic
-        attempts = {}
-        current_min_inliers = default_min_inliers  # Start with default, e.g., 32
-        steps = [16, 8, 4]  # Step sizes for adjustments
-        max_attempts = len(steps) + 1  # Initial + 3 adjustments
-
-        for attempt in range(max_attempts):
-            try:
-
-                temp_data = matches_alignment(
-                    data.copy(),  # Use deep copy to avoid modifying original
-                    transformation_type, confidence_tr,
-                    current_min_inliers, max_inliers, min_inlier_rate, reproj_tr, n_recenterings
-                )
-
-                optimizer = Optimizer(transformation_type, temp_data)
-                vec = optimizer.homography_to_vec(optimizer.homographies)
-                error = optimizer.reprojection_error(vec)
-                error = (error ** 2).mean() ** 0.5
-                logger.debug(f"Initial error: {error}")
-
-                if use_BA:
-                    temp_data = optimizer.bundle_adjustment()
-                    vec = optimizer.homography_to_vec(optimizer.homographies)
-                    error = optimizer.reprojection_error(vec)
-                    error = (error ** 2).mean() ** 0.5
-                    logger.debug(f"Optimized error: {error}")  # переписать красиво подсчет ошибки
-
-                error_threshold = OPTIMIZED_ERROR_THRESHOLD if use_BA else INITIAL_ERROR_THRESHOLD
-                has_dropped = temp_data.num_dropped_images > 0
-                has_high_error = error > error_threshold
-
-                # retry log warning
-                if attempt == 0 and (has_dropped or has_high_error):
-                    log = ''
-                    if has_dropped:
-                        log += f"Probably missing {temp_data.num_dropped_images} images. Panorama may be not complete. "
-
-                    if has_high_error:
-                        log += "Probably contains false connections. Panorama may be distorted. "
-
-                    log += 'Using adaptive strictness.'
-                    logger.warning(log)
-
-                if not has_dropped and not has_high_error:
-                    temp_data = translate_and_add_panorama_size(temp_data)
-                    return temp_data
-
-                attempts[current_min_inliers] = (temp_data.num_dropped_images, error, temp_data)
-
-                if attempt == max_attempts - 1:
-                    break
-
-                step = steps[attempt]
-
-                if has_high_error:
-                    current_min_inliers += step
-                else:
-                    current_min_inliers -= step
-
-                # Clamp min_inliers to reasonable bounds, e.g., min 4
-                current_min_inliers = max(4, current_min_inliers)
-
-            except Exception as e:
-                logger.error(f"Alignment attempt with min_inliers={current_min_inliers} failed: {str(e)}")
-
-        # If no successful attempt, select best from attempts
-        if attempts:
-            # Rule 1: Filter attempts with error below threshold
-            error_threshold = OPTIMIZED_ERROR_THRESHOLD if use_BA else INITIAL_ERROR_THRESHOLD
-            valid_attempts = {
-                k: v for k, v in attempts.items() if v[1] <= error_threshold
-            }
-
-            if valid_attempts:
-                # Choose attempt with minimum dropped tiles; if equal, max min_inliers
-                best_key = min(
-                    valid_attempts,
-                    key=lambda k: (valid_attempts[k][0], -k)  # Minimize dropped, maximize min_inliers
-                )
-                best_data = valid_attempts[best_key][2]
-                best_data = translate_and_add_panorama_size(best_data)
-                logger.warning(
-                    f"Selected best attempt with min_inliers={best_key}, \
-                    dropped={valid_attempts[best_key][0]}, \
-                    error={valid_attempts[best_key][1]}"
-                )
-                return best_data
-
-            # Rule 2: If all errors >= threshold, select where dropped <= MAX_DROPPED_TILES and max min_inliers
-            valid_attempts = {
-                k: v for k, v in attempts.items() if v[0] <= MAX_DROPPED_TILES
-            }
-            if valid_attempts:
-                best_key = max(valid_attempts, key=lambda k: k)  # Maximize min_inliers
-                best_data = valid_attempts[best_key][2]
-                best_data = translate_and_add_panorama_size(best_data)
-                logger.warning(
-                    f"Selected best attempt with min_inliers={best_key}, \
-                    dropped={valid_attempts[best_key][0]}, \
-                    error={valid_attempts[best_key][1]}"
-                )
-                return best_data
-
-            # Rule 3: Fallback to min_inliers=32
-            if 32 in attempts:
-                best_data = attempts[32][2]
-                best_data = translate_and_add_panorama_size(best_data)
-                logger.error("All panoramas poor; returning default with min_inliers=32.")
-                return best_data
-
-        raise RuntimeError("All alignment attempts failed; no valid panorama could be constructed.")
 
     def _compose(self, data: StitchingData, use_gain_comp: bool = True, use_graphcut: bool = True,
                  coarse_scale: int = None, fine_scale: int = None, lane_width: int = None,
@@ -357,7 +136,10 @@ class Stitcher:
                 composition) fails.
         """
         try:
-            alignment_data = self._align(data)
+            alignment_data = _align(
+                data=data,
+                cfg=self.align_cfg
+            )
             panorama_data = self._compose(alignment_data)
             return panorama_data
         except Exception as e:
@@ -379,8 +161,10 @@ class Stitcher:
                 (alignment or collage creation) fails.
         """
         try:
-            alignment_data = self._align(data)
-
+            alignment_data = _align(
+                data=data,
+                cfg=self.align_cfg
+            )
             panorama_data = make_collage(
                 alignment_data,
                 use_gains=False,
@@ -408,7 +192,7 @@ class Stitcher:
                 composition) fails.
         """
         try:
-            alignment_data = self._align(data)
+            alignment_data = _align(data)
             data = apply_gain_comp(alignment_data)
             panorama_data = make_collage(data, use_gains=True)
             return panorama_data
@@ -432,7 +216,7 @@ class Stitcher:
                 composition) fails.
         """
         try:
-            alignment_data = self._align(data)
+            alignment_data = _align(data)
             data = apply_gain_comp(alignment_data)
             data = apply_graphcut(data)
             panorama_data = make_mosaic(data, use_gains=True)
@@ -441,62 +225,6 @@ class Stitcher:
 
             logger.error(f"Full stitching pipeline failed: {str(e)}")
             return None
-
-    def _CUBA(  # Custom Undistortion Bundle Adjustment
-        self,
-        data: StitchingData,
-    ) -> TileSet:
-
-        transformation_type = self.transformation_type
-        confidence_tr = self.confidence_tr
-        min_inliers = self.min_inliers
-        max_inliers = self.max_inliers
-        min_inlier_rate = self.min_inlier_rate
-        reproj_tr = self.reproj_tr
-        n_recenterings = self.n_recenterings
-
-        # lr_f: float = 1239.9967836846104
-        lr_log_f: float = 1e-2
-        lr_c: float = 3.585612610345396
-        lr_k1: float = 0.07556810141274425
-        lr_k2: float = 0.001260466458564947
-        lr_k3: float = 5.727904470799619e-07
-        lr_p: float = 0.0003795853142670637
-        h_gamma: float = 0.9
-        d_gamma: float = 0.9
-
-        data = matches_alignment(
-            data, transformation_type, confidence_tr, min_inliers,
-            max_inliers, min_inlier_rate, reproj_tr, n_recenterings
-        )
-
-        f = 1e4
-        some_id = data.tile_set.order[0]
-        w, h = data.tile_set.images[some_id].orig_size
-        cx, cy = w // 2, h // 2
-
-        d_optimizer = DistortionOptimizer('affine', self.device, data, f=f, cx=cx, cy=cy)
-        try:
-            data = d_optimizer.bundle_adjustment(
-                # lr_f=lr_f,
-                lr_log_f=lr_log_f,
-                lr_c=lr_c,
-                lr_k1=lr_k1,
-                lr_k2=lr_k2,
-                lr_k3=lr_k3,
-                lr_p=lr_p,
-                h_gamma=h_gamma,
-                d_gamma=d_gamma,
-                max_iter=2000,
-                verbose='core'
-            )
-        except Exception as e:
-            print(f"Affine bundle adjustment failed: {e}")
-
-        affine_cm = d_optimizer.get_camera_matrix_batch().squeeze().cpu().detach().numpy()
-        affine_dp = d_optimizer.get_distortion_params_batch().cpu().detach().numpy()[:, :5]
-
-        return affine_cm, affine_dp
 
     def preproccess_undictortion(
         self,
@@ -508,10 +236,9 @@ class Stitcher:
         current_dir = Path(str(tiles_dir))
         tmp_dir = cache_dir / 'tmp'
         for _ in range(n_undistortions):
-
-            tile_set = self._parse_dir(current_dir)
-            data = self.matcher.match(tile_set)
-            camera_matrix, distortion_params = self._CUBA(data)
+            tile_set = _tiles_parsing(current_dir, use_grid_info=self.use_grid_info)
+            data = self.matcher.match(tile_set, use_grid_info=self.use_grid_info)
+            camera_matrix, distortion_params = _CUBA(data, self.align_cfg)
 
             if iter == n_undistortions - 1:
                 break
@@ -559,8 +286,8 @@ class Stitcher:
             matches_dir = cache_path / 'matches.pkl'
             data = Serializer().load(matches_dir)
         else:
-            tile_set = self._parse_dir(tiles_dir)
-            data = self.matcher.match(tile_set)
+            tile_set = _tiles_parsing(tiles_dir, use_grid_info=self.use_grid_info)
+            data = self.matcher.match(tile_set, use_grid_info=self.use_grid_info)
 
         mode = self.stitching_mode if mode is None else mode
         match mode:

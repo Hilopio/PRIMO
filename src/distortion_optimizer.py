@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from torch.optim.lr_scheduler import StepLR
 from kornia.geometry.calibration import undistort_points
 
-from logger import logger, log_time
+from src.logger import logger, log_time
 from src.classes import StitchingData
 
 
@@ -289,9 +289,9 @@ class DistortionOptimizerBase(ABC):
                 if verbose == 'full':
                     logger.debug(f"Iteration: {iteration + 1}, Loss: {current_error:.6f}")
 
+        final_loss = torch.sqrt(self.reprojection_mse()).item()
         if verbose in ('core', 'full'):
             with torch.no_grad():
-                final_loss = torch.sqrt(self.reprojection_mse()).item()
                 logger.debug(f"Optimized error: {final_loss}")
 
         # Выводим финальные параметры с пометками о заморозке
@@ -320,7 +320,7 @@ class DistortionOptimizerBase(ABC):
             img = self.data.tile_set.images[id]
             img.homography = homographies[:, :, i].cpu().numpy()
 
-        return self.data
+        return final_loss
 
 
 class ProjectiveDistortionOptimizer(DistortionOptimizerBase):

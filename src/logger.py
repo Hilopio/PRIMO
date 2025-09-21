@@ -1,6 +1,9 @@
 from loguru import logger
 import time
+import os
 
+os.environ['TZ'] = 'Europe/Moscow'
+time.tzset()
 logger.remove()
 
 logger.add(

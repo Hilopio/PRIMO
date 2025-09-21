@@ -3,14 +3,15 @@ import torch
 import kornia.feature as KF
 import gc
 
-from logger import logger, log_time
+from src.logger import logger, log_time
 from src.classes import TileSet, StitchingData, Match
 
 
 class Matcher:
     def __init__(
         self, device: str, weights: str = 'outdoor',
-        batch_size: int = 10, inference_size: list = [600, 400]
+        batch_size: int = 10, inference_size: list = [600, 400],
+        use_grid_info: bool = False
     ) -> None:
         """
         Initialize the Matcher with a specified device.
@@ -21,6 +22,7 @@ class Matcher:
         self.device = torch.device(device if device else "cpu")
         self.batch_size = batch_size
         self.inference_size = inference_size
+        self.use_grid_info = use_grid_info
 
         if weights == 'outdoor' or weights == 'indoor':
             self.model = KF.LoFTR(pretrained=weights).to(self.device)
@@ -30,8 +32,31 @@ class Matcher:
             self.model.load_state_dict(checkpoint['state_dict'])
             self.model.to(device)
 
+    def prepare_pairs(self, tile_set: TileSet, use_grid_info: bool = False) -> list[tuple[int, int]]:
+        n = len(tile_set.order)
+        if n < 2:
+            raise Exception("Not enough images to match")
+
+        if not use_grid_info:
+            ord_i, ord_j = np.triu_indices(n, k=1)
+            idx_pairs = list(zip(ord_i, ord_j))
+            pairs = [(tile_set.order[i], tile_set.order[j]) for i, j in idx_pairs]
+        else:
+            pairs = []
+            for i in range(n):
+                for j in range(i + 1, n):
+                    r1, c1 = tile_set.rowcol[tile_set.order[i]]
+                    r2, c2 = tile_set.rowcol[tile_set.order[j]]
+                    if abs(r1 - r2) <= 2 and abs(c1 - c2) <= 2:
+                        pairs.append((tile_set.order[i], tile_set.order[j]))
+
+        return pairs
+
     @log_time("Matching done for", logger)
-    def match(self, tile_set: TileSet, batch_size: int = None, inference_size: list = None) -> StitchingData:
+    def match(
+        self, tile_set: TileSet, batch_size: int = None,
+        inference_size: list = None, use_grid_info: bool = None
+    ) -> StitchingData:
         """
         Match features between images to find correspondences using the LoFTR model.
 
@@ -45,14 +70,9 @@ class Matcher:
         """
         batch_size = self.batch_size if batch_size is None else batch_size
         inference_size = np.array(self.inference_size if inference_size is None else inference_size)
+        use_grid_info = self.use_grid_info if use_grid_info is None else use_grid_info
 
-        n = len(tile_set.order)
-
-        if n < 2:
-            raise Exception("Not enough images to match")
-
-        ord_i, ord_j = np.triu_indices(n, k=1)
-        pairs = list(zip(ord_i, ord_j))
+        pairs = self.prepare_pairs(tile_set, use_grid_info=self.use_grid_info)
         total_infer = len(pairs)
         batch_num = (total_infer - 1) // batch_size + 1
 
@@ -62,9 +82,7 @@ class Matcher:
 
             batch1: list[torch.Tensor] = []
             batch2: list[torch.Tensor] = []
-            for i, j in current_pairs:
-                id_i = tile_set.order[i]
-                id_j = tile_set.order[j]
+            for id_i, id_j in current_pairs:
                 tensor_i = tile_set.images[id_i].get_loftr_tensor(inference_size)
                 tensor_j = tile_set.images[id_j].get_loftr_tensor(inference_size)
                 batch1.append(tensor_i)

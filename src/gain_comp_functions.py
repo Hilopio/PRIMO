@@ -2,7 +2,7 @@ import numpy as np
 from src.classes import StitchingData
 from src.utils import _warp
 from scipy.optimize import least_squares, Bounds
-from logger import logger, log_time
+from src.logger import logger, log_time
 
 
 def find_mean_color(images: list[np.ndarray], gains: list[int] | None = None) -> np.ndarray:

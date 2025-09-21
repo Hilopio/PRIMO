@@ -1,7 +1,7 @@
 from src.classes import StitchingData, Match, TileSet
 import numpy as np
 import cv2
-from logger import logger
+from src.logger import logger
 
 
 def find_homographies_and_inliers(
@@ -11,7 +11,6 @@ def find_homographies_and_inliers(
     confidence_threshold: float,
     min_inliers: int,
     max_inliers: int,
-    min_inliers_rate: float,
     reproj_tr: float
 ) -> tuple[list[list[np.ndarray | None]], list[list[Match]], np.ndarray]:
     """
@@ -78,15 +77,7 @@ def find_homographies_and_inliers(
         if num_inliers_ij < min_inliers:
             continue
 
-        if num_inliers_ij / num_matches_ij < min_inliers_rate:
-            continue
-        # print('-' * 20)
-
-        # print(len(Hs), len(Hs[0]))
-        # print(i, j)
         Hs[i][j] = H_ij
-
-        # print('+' * 20)
 
         try:
             Hs[j][i] = np.linalg.inv(H_ij)
@@ -225,7 +216,7 @@ def recentering(tile_set, n_iterations):
 
 def matches_alignment(
     matches_data: StitchingData, transformation_type: str, confidence_tr: float, min_inliers: int,
-    max_inliers: int, min_inliers_rate: float, reproj_tr: float, n_iterations: int
+    max_inliers: int, reproj_tr: float, n_iterations: int
 ) -> StitchingData:
     """
     Find homographies between images based on matching data and perform alignment.
@@ -254,7 +245,6 @@ def matches_alignment(
         confidence_tr,
         min_inliers,
         max_inliers,
-        min_inliers_rate,
         reproj_tr
     )
 

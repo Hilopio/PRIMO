@@ -1,6 +1,8 @@
 from src.matcher import Matcher
 from src.stitcher import Stitcher
 from src.runner import Runner
+from src.classes import AlignConfig
+from src.logger import logger
 
 import os
 import hydra
@@ -12,23 +14,19 @@ os.environ["HYDRA_FULL_ERROR"] = "1"
 @hydra.main(version_base="1.2", config_path=".", config_name="config.yaml")
 def main(cfg: DictConfig):
     matcher = Matcher(
-        cfg.match.device,
-        cfg.match.matcher_weights,
-        cfg.match.batch_size,
-        cfg.match.inference_size
+        device=cfg.match.device,
+        weights=cfg.match.matcher_weights,
+        batch_size=cfg.match.batch_size,
+        inference_size=cfg.match.inference_size,
+        use_grid_info=cfg.use_grid_info
     )
+
+    align_cfg = AlignConfig(**cfg.align)
 
     stitcher = Stitcher(
         matcher=matcher,
         load_matches=cfg.load_matches,
-        transformation_type=cfg.align.transformation_type,
-        confidence_tr=cfg.align.confidence_tr,
-        min_inliers=cfg.align.min_inliers,
-        max_inliers=cfg.align.max_inliers,
-        min_inlier_rate=cfg.align.min_inlier_rate,
-        reproj_tr=cfg.align.reproj_tr,
-        n_recenterings=cfg.align.n_recenterings,
-        use_BA=cfg.align.use_BA,
+        align_cfg=align_cfg,
 
         use_gain_comp=cfg.compose.use_gain_comp,
         use_graphcut=cfg.compose.use_graphcut,
@@ -47,12 +45,14 @@ def main(cfg: DictConfig):
         draw_inliers=cfg.vizualization.draw_inliers,
         draw_connections=cfg.vizualization.draw_connections,
 
+        use_grid_info=cfg.use_grid_info,
         custom_undistortion=cfg.custom_undistortion,
         n_undistortions=cfg.n_undistortions,
         stitching_mode=cfg.stitching_mode
     )
 
     runner = Runner()
+    logger.info(f"Processing collection with params: \n{align_cfg}")
     runner.process_collection(
         stitcher=stitcher,
         tiles_metadir=cfg.dirs.tiles_dir,
