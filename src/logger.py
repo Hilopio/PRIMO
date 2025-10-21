@@ -7,7 +7,7 @@ time.tzset()
 logger.remove()
 
 logger.add(
-    "stitchify.log",
+    "PRIMO.log",
     # format="<green>{time}</green> <level>{level}</level> <cyan>{message}</cyan>",
     rotation="10 MB",
     level="DEBUG"

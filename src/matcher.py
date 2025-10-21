@@ -101,8 +101,9 @@ class Matcher:
             batch_result = {k: v.detach().cpu() for k, v in correspondences.items()}
             del correspondences
             if 'cuda' in self.device.type:
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
+                    torch.cuda.set_device(self.device.index)
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
             gc.collect()
 
             for local_i, (i, j) in enumerate(current_pairs):

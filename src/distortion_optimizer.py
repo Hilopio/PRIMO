@@ -19,8 +19,9 @@ class DistortionOptimizerBase(ABC):
         self.seed = 42
         random.seed(self.seed)
         np.random.seed(self.seed)
-        torch.manual_seed(self.seed)
-        if torch.cuda.is_available():
+        if 'cuda' in self.device.type:
+        # if torch.cuda.is_available():
+            torch.cuda.set_device(self.device.index)
             torch.cuda.manual_seed(self.seed)
             torch.cuda.manual_seed_all(self.seed)
 

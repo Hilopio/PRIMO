@@ -336,6 +336,13 @@ def translate_and_add_panorama_size(data: StitchingData) -> StitchingData:
     for id in tile_set.order:
         img = tile_set.images[id]
         img.homography = T @ img.homography
+    
+    # saving
+    order_array = np.array(tile_set.order)
+    homographies_array = np.array([tile_set.images[id].homography for id in tile_set.order])
+    assert order_array.shape[0] == homographies_array.shape[0], (order_array.shape, homographies_array.shape)
+    np.save("/home/g.nikolaev/order.npy", order_array)
+    np.save("/home/g.nikolaev/homographies.npy", homographies_array)
 
     return StitchingData(
         tile_set=tile_set,

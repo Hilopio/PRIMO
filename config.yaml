@@ -1,5 +1,5 @@
 match:
-  device:  'cuda:5'  # 'cpu'  # 
+  device:  'cuda:6'  # 'cpu'  # 
   batch_size: 7
   inference_size: [600, 400]
   matcher_weights: '/home/g.nikolaev/petroscope/petroscope/panoramas/weights/loftr_outdoor.ckpt'
@@ -42,34 +42,24 @@ blending:
 #   panoramas_dir: "/home/g.nikolaev/data/panoramas"
 
 # dirs:
-#   tiles_dir: "/home/g.nikolaev/data/geology_tiles"
-#   cache_dir: "/home/g.nikolaev/data/geology_cache"
-#   panoramas_dir: "/home/g.nikolaev/data/geology_panoramas"
+#   tiles_dir: "/home/g.nikolaev/data/update_tiles"
+#   cache_dir: "/home/g.nikolaev/data/update_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/update_panoramas"
 
 # dirs:
-#   tiles_dir: "/home/g.nikolaev/data/new_tiles"
-#   cache_dir: "/home/g.nikolaev/data/new_cache"
-#   panoramas_dir: "/home/g.nikolaev/data/new_panoramas"
+#   tiles_dir: "/home/g.nikolaev/data/gt_homo_tiles"
+#   cache_dir: "/home/g.nikolaev/data/gt_homo_cache"
+#   panoramas_dir: "/home/g.nikolaev/data/gt_homo_panoramas"
 
 # dirs:
-#   tiles_dir: "/home/g.nikolaev/data/hb_tiles"
-#   cache_dir: "/home/g.nikolaev/data/hb_cache"
-#   panoramas_dir: "/home/g.nikolaev/data/hb_panoramas"
-
-# dirs:
-#   tiles_dir: "/home/g.nikolaev/data/new_metal_tiles"
-#   cache_dir: "/home/g.nikolaev/data/new_metal_cache"
-#   panoramas_dir: "/home/g.nikolaev/data/new_metal_panoramas"
-
-# dirs:
-#   tiles_dir: "/home/g.nikolaev/data/HISTOBREAST_tiles"
-#   cache_dir: "/home/g.nikolaev/data/HISTOBREAST_cache"
-#   panoramas_dir: "/home/g.nikolaev/data/HISTOBREAST_panoramas"
+#   tiles_dir: "/home/g.nikolaev/data/big_panoramas_collection/tiles"
+#   cache_dir: "/home/g.nikolaev/data/big_panoramas_collection/cache"
+#   panoramas_dir: "/home/g.nikolaev/data/big_panoramas_collection/results"
 
 dirs:
-  tiles_dir: "/home/g.nikolaev/data/LS_big_tiles"
-  cache_dir: "/home/g.nikolaev/data/LS_big_cache"
-  panoramas_dir: "/home/g.nikolaev/data/LS_big_panoramas"
+  tiles_dir: "/home/g.nikolaev/data/small_panoramas_collection/tiles"
+  cache_dir: "/home/g.nikolaev/data/small_panoramas_collection/cache"
+  panoramas_dir: "/home/g.nikolaev/data/small_panoramas_collection/results"
 
 log:
   detailed_log: True
@@ -78,7 +68,7 @@ vizualization:
   draw_inliers: False
   draw_connections: False
 
-use_grid_info: True
+use_grid_info: False
 load_matches: False
 custom_undistortion: True
 n_undistortions: 1
