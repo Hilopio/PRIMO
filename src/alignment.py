@@ -1,5 +1,6 @@
 from src.classes import StitchingData, TileSet, AlignConfig
-from src.optimizer import Optimizer
+# from src.optimizer import Optimizer
+from src.optimizer_plus import Optimizer
 from src.distortion_optimizer import DistortionOptimizer, DistortionOptimizerBase
 from src.align_functions import matches_alignment, translate_and_add_panorama_size
 
@@ -14,17 +15,21 @@ def _simple_align_iteration(data: StitchingData, cfg: AlignConfig) -> StitchingD
         cfg.max_used_inliers, cfg.relative_reproj_threshold, cfg.max_recenter_iterations
     )
 
-    optimizer = Optimizer(cfg.transformation_type, temp_data)
-    vec = optimizer.homography_to_vec(optimizer.homographies)
-    error = optimizer.reprojection_error(vec)
-    error = (error ** 2).mean() ** 0.5
+    # optimizer = Optimizer(cfg.transformation_type, temp_data)
+    # vec = optimizer.homography_to_vec(optimizer.homographies)
+    # error = optimizer.reprojection_error(vec)
+    # error = (error ** 2).mean() ** 0.5
+    # logger.debug(f"Initial error: {error}")
+    optimizer = Optimizer(temp_data)
+    error = optimizer.get_rmse()
     logger.debug(f"Initial error: {error}")
 
     if cfg.use_bundle_adjustment:
         temp_data = optimizer.bundle_adjustment()
-        vec = optimizer.homography_to_vec(optimizer.homographies)
-        error = optimizer.reprojection_error(vec)
-        error = (error ** 2).mean() ** 0.5
+        # vec = optimizer.homography_to_vec(optimizer.homographies)
+        # error = optimizer.reprojection_error(vec)
+        # error = (error ** 2).mean() ** 0.5
+        error = optimizer.get_rmse()
         logger.debug(f"Optimized error: {error}")  # переписать красиво подсчет ошибки
 
     return error, temp_data
