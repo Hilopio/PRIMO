@@ -7,7 +7,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 
-class OptimizerBase(ABC):
+class Optimizer(ABC):
 
     def __init__(self, data: StitchingData):
         self.data = data
@@ -141,7 +141,7 @@ class OptimizerBase(ABC):
 
     @log_time("Bundle adjustment done for", logger)
     def bundle_adjustment(self):
-
+        print("Starting bundle adjustment")
         optimizer = torch.optim.Adam([
             {'params': self.a_params, 'lr': 1e-3},
             {'params': self.b_params, 'lr': 1e-1}

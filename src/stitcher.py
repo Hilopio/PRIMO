@@ -177,55 +177,6 @@ class Stitcher:
             logger.error(f"Collage stitching failed: {str(e)}")
             return None
 
-    def _stitch_compensated_collage(self, data: StitchingData) -> Panorama:
-        """
-        Perform the full stitching pipeline to create a seamless panorama from
-        input images.
-        Args:
-            images (ImageSet): Set of images to be stitched, containing image
-                data and processing order.
-        Returns:
-            PanoramaData: Data object representing the final stitched panorama
-                with the composed image and canvas.
-        Raises:
-            RuntimeError: If any step in the stitching pipeline (alignment or
-                composition) fails.
-        """
-        try:
-            alignment_data = _align(data)
-            data = apply_gain_comp(alignment_data)
-            panorama_data = make_collage(data, use_gains=True)
-            return panorama_data
-        except Exception as e:
-
-            logger.error(f"Full stitching pipeline failed: {str(e)}")
-            return None
-
-    def _stitch_compensated_mosaic(self, data: StitchingData) -> Panorama:
-        """
-        Perform the full stitching pipeline to create a seamless panorama from
-        input images.
-        Args:
-            images (ImageSet): Set of images to be stitched, containing image
-                data and processing order.
-        Returns:
-            PanoramaData: Data object representing the final stitched panorama
-                with the composed image and canvas.
-        Raises:
-            RuntimeError: If any step in the stitching pipeline (alignment or
-                composition) fails.
-        """
-        try:
-            alignment_data = _align(data)
-            data = apply_gain_comp(alignment_data)
-            data = apply_graphcut(data)
-            panorama_data = make_mosaic(data, use_gains=True)
-            return panorama_data
-        except Exception as e:
-
-            logger.error(f"Full stitching pipeline failed: {str(e)}")
-            return None
-
     def preproccess_undictortion(
         self,
         tiles_dir: Path,

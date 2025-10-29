@@ -157,6 +157,35 @@ class AlignConfig:
     def copy(self) -> 'AlignConfig':
         return replace(self)
 
+@dataclass
+class DistortionConfig:
+    f=10000.0
+    cx=0.0
+    cy=0.0
+    k1=0.0
+    k2=0.0
+    k3=0.0
+    p1=0.0
+    p2=0.0
+    freeze_principal_point=False
+    freeze_tangential=False
+
+@dataclass
+class OptimizerConfig:
+    a_params_lr: float = 1e-3
+    b_params_lr: float = 1e0
+    c_params_lr: float = 1e-6
+    h_gamma: float = 0.9
+
+    lr_log_f: float = 1e-2
+    lr_c: float = 3.585612610345396
+    lr_k1: float = 0.07556810141274425
+    lr_k2: float = 0.001260466458564947
+    lr_k3: float = 5.727904470799619e-07
+    lr_p: float = 0.0003795853142670637
+    d_gamma: float = 0.9
+
+    max_iter: int = 5000
 
 @dataclass
 class Match:
@@ -208,6 +237,10 @@ class StitchingData:
     matches: list[Match]
     reper_idx: int
     num_dropped_images: int
+
+    camera_matrix: np.ndarray
+    distortion_params: np.ndarray
+
     panorama_size: tuple
     canvas: np.ndarray
 
@@ -223,6 +256,10 @@ class StitchingData:
             matches=[m.copy() for m in self.matches],
             reper_idx=self.reper_idx,
             num_dropped_images=self.num_dropped_images,
+
+            camera_matrix=copy.deepcopy(self.camera_matrix),
+            distortion_params=copy.deepcopy(self.distortion_params),
+
             panorama_size=copy.deepcopy(self.panorama_size),
             canvas=np.copy(self.canvas) if self.canvas is not None else None
         )

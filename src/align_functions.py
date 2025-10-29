@@ -279,6 +279,10 @@ def matches_alignment(
         matches=inliers,
         reper_idx=reper_idx,
         num_dropped_images=matches_data.num_dropped_images,
+
+        camera_matrix=None,
+        distortion_params=None,
+
         panorama_size=None,
         canvas=None
     )  # тоже надо переписать, возможно создание лишней сущности
@@ -349,6 +353,10 @@ def translate_and_add_panorama_size(data: StitchingData) -> StitchingData:
         matches=data.matches,
         reper_idx=data.reper_idx,
         num_dropped_images=data.num_dropped_images,
+
+        camera_matrix=data.camera_matrix,
+        distortion_params=data.distortion_params,
+
         panorama_size=panorama_size,
         canvas=None
     )

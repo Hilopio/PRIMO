@@ -1,12 +1,14 @@
 from src.classes import StitchingData, TileSet, AlignConfig
 # from src.optimizer import Optimizer
-from src.optimizer_plus import Optimizer
-from src.distortion_optimizer import DistortionOptimizer, DistortionOptimizerBase
+# from src.optimizer_plus import Optimizer
+from src.optimizer_ultimate import Optimizer
+# from src.distortion_optimizer import DistortionOptimizer, DistortionOptimizerBase
 from src.align_functions import matches_alignment, translate_and_add_panorama_size
 
 from src.logger import logger
 import torch
 
+device = torch.device('cpu')
 
 def _simple_align_iteration(data: StitchingData, cfg: AlignConfig) -> StitchingData:
 
@@ -15,24 +17,18 @@ def _simple_align_iteration(data: StitchingData, cfg: AlignConfig) -> StitchingD
         cfg.max_used_inliers, cfg.relative_reproj_threshold, cfg.max_recenter_iterations
     )
 
-    # optimizer = Optimizer(cfg.transformation_type, temp_data)
-    # vec = optimizer.homography_to_vec(optimizer.homographies)
-    # error = optimizer.reprojection_error(vec)
-    # error = (error ** 2).mean() ** 0.5
-    # logger.debug(f"Initial error: {error}")
-    optimizer = Optimizer(temp_data)
-    error = optimizer.get_rmse()
-    logger.debug(f"Initial error: {error}")
+    try:
+        optimizer = Optimizer(device, temp_data, cfg.transformation_type, undistort=False)
+        initial_rmse = optimizer.get_rmse()
+        logger.debug(f"BA-Initial error: {initial_rmse}")
 
-    if cfg.use_bundle_adjustment:
         temp_data = optimizer.bundle_adjustment()
-        # vec = optimizer.homography_to_vec(optimizer.homographies)
-        # error = optimizer.reprojection_error(vec)
-        # error = (error ** 2).mean() ** 0.5
-        error = optimizer.get_rmse()
-        logger.debug(f"Optimized error: {error}")  # переписать красиво подсчет ошибки
+        final_rmse = optimizer.get_rmse()
+        logger.debug(f"BA-Optimized error: {final_rmse}")
+    except Exception as e:
+        logger.error(f"Classical BA failed: {str(e)}")
 
-    return error, temp_data
+    return final_rmse, temp_data
 
 
 def _adaptive_sycle(data: StitchingData, cfg: AlignConfig) -> StitchingData:
@@ -106,8 +102,8 @@ def log_choosen(attempts, best_key):
 
 def _choose_best_attempt(
     cfg: AlignConfig,
-    attempts: dict[int, tuple[int, float, StitchingData | DistortionOptimizerBase]]
-) -> StitchingData | DistortionOptimizerBase:
+    attempts: dict[int, tuple[int, float, StitchingData]]
+) -> StitchingData:
 
     error_threshold = (
         cfg.optimized_error_threshold
@@ -162,46 +158,25 @@ def _align(data: StitchingData, cfg: AlignConfig) -> StitchingData:
 
 def _simple_CUBA_iteration(data: StitchingData, cfg: AlignConfig):
 
-    lr_log_f: float = 1e-2
-    lr_c: float = 3.585612610345396
-    lr_k1: float = 0.07556810141274425
-    lr_k2: float = 0.001260466458564947
-    lr_k3: float = 5.727904470799619e-07
-    lr_p: float = 0.0003795853142670637
-    h_gamma: float = 0.9
-    d_gamma: float = 0.9
-
-    f = 1e4
-    some_id = data.tile_set.order[0]
-    w, h = data.tile_set.images[some_id].orig_size
-    cx, cy = w // 2, h // 2
-
-    device = torch.device('cpu')
-
     data = matches_alignment(
         data.copy(), cfg.transformation_type, cfg.confidence_threshold,
         cfg.min_inliers_for_accept, cfg.max_used_inliers,
         cfg.relative_reproj_threshold, cfg.max_recenter_iterations
     )
 
-    d_optimizer = DistortionOptimizer('affine', device, data, f=f, cx=cx, cy=cy)
     try:
-        error = d_optimizer.bundle_adjustment(
-            # lr_f=lr_f,
-            lr_log_f=lr_log_f,
-            lr_c=lr_c,
-            lr_k1=lr_k1,
-            lr_k2=lr_k2,
-            lr_k3=lr_k3,
-            lr_p=lr_p,
-            h_gamma=h_gamma,
-            d_gamma=d_gamma,
-            max_iter=2000,
-            verbose='core'
-        )
+        optimizer = Optimizer(device, data, cfg.transformation_type, undistort=True)
+        initial_rmse = optimizer.get_rmse(undistort=False)
+        logger.debug(f"UBA-Initial error: {initial_rmse}")
+
+        data = optimizer.bundle_adjustment()
+        final_rmse = optimizer.get_rmse()
+        logger.debug(f"UBA-Optimized error: {final_rmse}")
+
     except Exception as e:
-        logger.error(f"Affine bundle adjustment failed: {e}")
-    return error, data, d_optimizer
+        logger.error(f"Undistortion BA failed: {e}")
+
+    return final_rmse, data
 
 
 def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
@@ -222,7 +197,7 @@ def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
         try:
             current_cfg = cfg.copy()
             current_cfg.min_inliers_for_accept = current_min_inliers
-            error, temp_data, optimizer = _simple_CUBA_iteration(data, current_cfg)
+            error, temp_data = _simple_CUBA_iteration(data, current_cfg)
 
             has_dropped = temp_data.num_dropped_images > 0
             has_high_error = error > error_threshold
@@ -240,10 +215,10 @@ def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
                 logger.warning(log)
 
             if not has_dropped and not has_high_error:
-                attempts = {current_min_inliers: (temp_data.num_dropped_images, error, optimizer)}
+                attempts = {current_min_inliers: (temp_data.num_dropped_images, error, temp_data)}
                 return attempts
 
-            attempts[current_min_inliers] = (temp_data.num_dropped_images, error, optimizer)
+            attempts[current_min_inliers] = (temp_data.num_dropped_images, error, temp_data)
             if attempt == max_attempts - 1:
                 break
 
@@ -272,10 +247,10 @@ def _CUBA(  # Custom Undistortion Bundle Adjustment
         logger.error(f"Adaptive alignment failed: {str(e)}")
 
     try:
-        optimizer = _choose_best_attempt(cfg, attempts)
+        temp_data = _choose_best_attempt(cfg, attempts)
     except Exception as e:
         logger.error(f"Best attempt selection failed: {str(e)}")
 
-    affine_cm = optimizer.get_camera_matrix_batch().squeeze().cpu().detach().numpy()
-    affine_dp = optimizer.get_distortion_params_batch().cpu().detach().numpy()[:, :5]
+    affine_cm = temp_data.camera_matrix  # optimizer.get_camera_matrix_batch().squeeze().cpu().detach().numpy()
+    affine_dp = temp_data.distortion_params  # optimizer.get_distortion_params_batch().cpu().detach().numpy()[:, :5]
     return affine_cm, affine_dp

@@ -8,103 +8,121 @@ from torch.optim.lr_scheduler import StepLR
 from kornia.geometry.calibration import undistort_points
 
 from src.logger import logger, log_time
-from src.classes import StitchingData
-
+from src.classes import StitchingData, DistortionConfig
+from torch.nn.utils.rnn import pad_sequence
 
 class DistortionOptimizerBase(ABC):
-    def __init__(self, device, data: StitchingData, f=10000.0, cx=0.0, cy=0.0, k1=0.0, k2=0.0, k3=0.0, p1=0.0, p2=0.0,
-                 freeze_principal_point=False, freeze_tangential=False):
-
+    def __init__(
+        self, device, data: StitchingData, 
+    ):
         self.device = device
-        self.seed = 42
+        self.data = data
+        self.reper_idx = data.reper_idx
+        self.inliers = data.matches
+
+        self.set_seed(42)
+
+        homographies = []
+        for id in data.tile_set.order:
+            img = data.tile_set.images[id]
+            homographies.append(img.homography)
+        self.n_tiles = len(homographies)
+
+        self.prepare_homography_params(homographies)
+        self.prepare_distortion_params(DistortionConfig())
+
+        query_idx, target_idx, query_inliers_padded, target_inliers_padded = self.prepare_inliers()
+        self.query_idx = query_idx
+        self.target_idx = target_idx
+        self.query_inliers_padded = query_inliers_padded
+        self.target_inliers_padded = target_inliers_padded
+
+    
+    def set_seed(self, seed):
+        self.seed = seed
         random.seed(self.seed)
         np.random.seed(self.seed)
         if 'cuda' in self.device.type:
-        # if torch.cuda.is_available():
             torch.cuda.set_device(self.device.index)
             torch.cuda.manual_seed(self.seed)
             torch.cuda.manual_seed_all(self.seed)
 
-        self.data = data
-        self.reper_idx = data.reper_idx
+    def prepare_inliers(self):
+        query_idx = []
+        target_idx = []
+        query_inliers = []
+        target_inliers = []
+        # valid_inliers = []
+        for inlier in self.inliers:
+            query_idx.append(inlier.i)
+            target_idx.append(inlier.j)
+            query_inlier = torch.from_numpy(inlier.xy_i)
+            homogenuous_query = torch.cat((query_inlier, torch.ones((query_inlier.shape[0], 1))), dim=1)
+            query_inliers.append(homogenuous_query)
+            target_inlier = torch.from_numpy(inlier.xy_j)
+            homogenuous_target = torch.cat((target_inlier, torch.ones((target_inlier.shape[0], 1))), dim=1)
+            target_inliers.append(homogenuous_target)
 
-        self.freeze_principal_point = freeze_principal_point
-        self.freeze_tangential = freeze_tangential
 
-        self.homographies = []
-        for i, id in enumerate(data.tile_set.order):
-            img = data.tile_set.images[id]
-            H = img.homography.reshape(-1)
-            H = torch.tensor(H, device=self.device, dtype=torch.float32)
-            self.homographies.append(H)
-        self.homographies = torch.stack(self.homographies, dim=1)  # 9 * n_images
+        query_inliers_padded = pad_sequence(query_inliers, batch_first=True, padding_value=0.0)
+        target_inliers_padded = pad_sequence(target_inliers, batch_first=True, padding_value=0.0)
+        query_inliers_padded = query_inliers_padded.permute(0, 2, 1)
+        target_inliers_padded = target_inliers_padded.permute(0, 2, 1)
+        
+        assert query_inliers_padded.shape[0] == len(self.inliers)
+        assert query_inliers_padded.shape[1] == 3
+        assert query_inliers_padded.shape == target_inliers_padded.shape, (query_inliers_padded.shape, target_inliers_padded.shape)
+        return query_idx, target_idx, query_inliers_padded, target_inliers_padded
 
-        self.n_images = self.homographies.shape[1]
-
-        # self.f = nn.Parameter(torch.tensor([f], device=self.device, dtype=torch.float32, requires_grad=True))
+    def prepare_distortion_params(self, cfg: DistortionConfig):
         self.log_f = nn.Parameter(
             torch.tensor(
-                [torch.log(torch.tensor(f))],
+                [torch.log(torch.tensor(cfg.f))],
                 device=self.device,
                 dtype=torch.float32,
                 requires_grad=True
             )
         )
 
-        # Параметры главной точки - заморозка контролируется флагом
         self.c_xy = nn.Parameter(
             torch.tensor(
-                [cx, cy], device=self.device, dtype=torch.float32,
-                requires_grad=not freeze_principal_point
+                [cfg.cx, cfg.cy], device=self.device, dtype=torch.float32,
+                requires_grad=not cfg.freeze_principal_point
             )
         )
 
-        self.k1 = nn.Parameter(torch.tensor([k1], device=self.device, dtype=torch.float32, requires_grad=True))
-        self.k2 = nn.Parameter(torch.tensor([k2], device=self.device, dtype=torch.float32, requires_grad=True))
-        self.k3 = nn.Parameter(torch.tensor([k3], device=self.device, dtype=torch.float32, requires_grad=True))
+        self.k1 = nn.Parameter(torch.tensor([cfg.k1], device=self.device, dtype=torch.float32, requires_grad=True))
+        self.k2 = nn.Parameter(torch.tensor([cfg.k2], device=self.device, dtype=torch.float32, requires_grad=True))
+        self.k3 = nn.Parameter(torch.tensor([cfg.k3], device=self.device, dtype=torch.float32, requires_grad=True))
 
-        # Тангенциальные параметры дисторсии - заморозка контролируется флагом
         self.p = nn.Parameter(
             torch.tensor(
-                [p1, p2], device=self.device, dtype=torch.float32,
-                requires_grad=not freeze_tangential
+                [cfg.p1, cfg.p2], device=self.device, dtype=torch.float32,
+                requires_grad=not cfg.freeze_tangential
             )
         )
+    
+    def prepare_homography_params(self, homographies):
+        assert np.allclose(homographies[self.reper_idx], np.eye(3))
 
-        # Векторизованная подготовка данных для матчей
-        self._prepare_vectorized_matches(data.matches)
+        all_homographies = np.array(homographies)
+        all_homographies = np.concatenate((
+            all_homographies[:self.reper_idx], all_homographies[self.reper_idx + 1:]
+        ), axis=0)
+
+        assert all_homographies.shape == (self.n_tiles - 1, 3, 3)
+        a_params = all_homographies[:, :2, :2].reshape(self.n_tiles - 1, 4)
+        b_params = all_homographies[:, :2, 2]
+        assert b_params.shape == (self.n_tiles - 1, 2)
+
+        self.a_params = torch.nn.Parameter(torch.from_numpy(a_params).to(self.device))
+        self.b_params = torch.nn.Parameter(torch.from_numpy(b_params).to(self.device))
 
     @property
     def f(self):
         """Вычисляет f из логарифмического параметра: f = exp(log_f)"""
         return torch.exp(self.log_f)
 
-    def _prepare_vectorized_matches(self, matches):
-        """Предварительная векторизация всех матчей для ускорения вычислений"""
-        i_indices = []
-        j_indices = []
-        xy_i_all = []
-        xy_j_all = []
-
-        for match in matches:
-            n_points = len(match.xy_i)
-            i_indices.extend([match.i] * n_points)
-            j_indices.extend([match.j] * n_points)
-            xy_i_all.extend(match.xy_i)
-            xy_j_all.extend(match.xy_j)
-
-        # Конвертируем в numpy массивы сначала, затем в тензоры
-        i_indices_np = np.array(i_indices, dtype=np.int64)
-        j_indices_np = np.array(j_indices, dtype=np.int64)
-        xy_i_all_np = np.array(xy_i_all, dtype=np.float32)
-        xy_j_all_np = np.array(xy_j_all, dtype=np.float32)
-
-        # Создаем тензоры из numpy массивов (намного быстрее)
-        self.i_indices = torch.from_numpy(i_indices_np).to(self.device)
-        self.j_indices = torch.from_numpy(j_indices_np).to(self.device)
-        self.xy_i_all = torch.from_numpy(xy_i_all_np).to(self.device)
-        self.xy_j_all = torch.from_numpy(xy_j_all_np).to(self.device)
-        self.total_matches = len(i_indices)
 
     def get_camera_matrix_batch(self, batch_size=1) -> torch.Tensor:
 
@@ -321,8 +339,6 @@ class DistortionOptimizerBase(ABC):
             img = self.data.tile_set.images[id]
             img.homography = homographies[:, :, i].cpu().numpy()
 
-        self.data.camera_matrix = self.get_camera_matrix_batch()[0].detach().cpu().numpy()
-        self.data.distortion_params = self.get_distortion_params_batch()[0, :5].detach().cpu().numpy()
         return final_loss
 
 

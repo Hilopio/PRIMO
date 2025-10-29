@@ -128,6 +128,10 @@ class Matcher:
             matches=matches,
             reper_idx=None,
             num_dropped_images=None,
+
+            camera_matrix=None,
+            distortion_params=None,
+
             panorama_size=None,
             canvas=None
         )
