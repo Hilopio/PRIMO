@@ -101,6 +101,10 @@ class Optimizer:
         assert query_inliers_padded.shape == target_inliers_padded.shape, (query_inliers_padded.shape, target_inliers_padded.shape)
 
         # inliers_padded.shape = (num_img_pairs, 3, max_inliers)
+        query_idx = torch.tensor(query_idx, device=self.device)
+        target_idx = torch.tensor(target_idx, device=self.device)
+        query_inliers_padded = query_inliers_padded.to(self.device)
+        target_inliers_padded = target_inliers_padded.to(self.device)
         return query_idx, target_idx, query_inliers_padded, target_inliers_padded
 
     def prepare_distortion_params(self, cfg: DistortionConfig):

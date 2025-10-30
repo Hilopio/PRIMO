@@ -2,6 +2,7 @@ from pathlib import Path
 import shutil
 import numpy as np
 from src.logger import logger, log_time
+import torch
 
 from src.classes import StitchingData, Panorama, AlignConfig
 
@@ -17,7 +18,6 @@ from src.blending_functions import apply_blending
 from src.serializer import Serializer
 
 from src.utils import undistort_dir
-
 
 class Stitcher:
     """
@@ -51,6 +51,7 @@ class Stitcher:
             n_levels (int): Number of levels for multi-scale processing. Defaults to 7.
         """
         self.device = matcher.device
+        self.optimizer_device = torch.device('cpu')
         self.matcher = matcher
 
         self.load_matches = load_matches
@@ -138,7 +139,8 @@ class Stitcher:
         try:
             alignment_data = _align(
                 data=data,
-                cfg=self.align_cfg
+                cfg=self.align_cfg,
+                device=self.optimizer_device,
             )
             panorama_data = self._compose(alignment_data)
             return panorama_data
@@ -163,7 +165,8 @@ class Stitcher:
         try:
             alignment_data = _align(
                 data=data,
-                cfg=self.align_cfg
+                cfg=self.align_cfg,
+                device=self.optimizer_device,
             )
             panorama_data = make_collage(
                 alignment_data,
@@ -181,7 +184,8 @@ class Stitcher:
         self,
         tiles_dir: Path,
         cache_dir: Path,
-        n_undistortions: int = None
+        device: torch.device,
+        n_undistortions: int = None,
     ) -> tuple[np.ndarray, np.ndarray]:
 
         current_dir = Path(str(tiles_dir))
@@ -189,7 +193,7 @@ class Stitcher:
         for _ in range(n_undistortions):
             tile_set = _tiles_parsing(current_dir, use_grid_info=self.use_grid_info)
             data = self.matcher.match(tile_set, use_grid_info=self.use_grid_info)
-            camera_matrix, distortion_params = _CUBA(data, self.align_cfg)
+            camera_matrix, distortion_params = _CUBA(data, self.align_cfg, device=device)
 
             if iter == n_undistortions - 1:
                 break
@@ -226,7 +230,8 @@ class Stitcher:
             camera_matrix, distortion_params = self.preproccess_undictortion(
                 tiles_dir,
                 cache_path,
-                n_undistortions=self.n_undistortions
+                n_undistortions=self.n_undistortions,
+                device=self.optimizer_device
             )
             tmp_dir = cache_path / 'tmp'
             undistort_dir(tiles_dir, tmp_dir, camera_matrix, distortion_params)

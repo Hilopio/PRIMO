@@ -8,9 +8,7 @@ from src.align_functions import matches_alignment, translate_and_add_panorama_si
 from src.logger import logger
 import torch
 
-device = torch.device('cpu')
-
-def _simple_align_iteration(data: StitchingData, cfg: AlignConfig) -> StitchingData:
+def _simple_align_iteration(data: StitchingData, cfg: AlignConfig, device: torch.device) -> StitchingData:
 
     temp_data = matches_alignment(
         data.copy(), cfg.transformation_type, cfg.confidence_threshold, cfg.min_inliers_for_accept,
@@ -31,7 +29,7 @@ def _simple_align_iteration(data: StitchingData, cfg: AlignConfig) -> StitchingD
     return final_rmse, temp_data
 
 
-def _adaptive_sycle(data: StitchingData, cfg: AlignConfig) -> StitchingData:
+def _adaptive_sycle(data: StitchingData, cfg: AlignConfig, device: torch.device) -> StitchingData:
     attempts = {}
     current_min_inliers = cfg.min_inliers_for_accept
     if cfg.adaptive:
@@ -49,7 +47,7 @@ def _adaptive_sycle(data: StitchingData, cfg: AlignConfig) -> StitchingData:
         try:
             current_cfg = cfg.copy()
             current_cfg.min_inliers_for_accept = current_min_inliers
-            error, temp_data = _simple_align_iteration(data, current_cfg)
+            error, temp_data = _simple_align_iteration(data, current_cfg, device)
 
             has_dropped = temp_data.num_dropped_images > 0
             has_high_error = error > error_threshold
@@ -142,9 +140,9 @@ def _choose_best_attempt(
     return best_data
 
 
-def _align(data: StitchingData, cfg: AlignConfig) -> StitchingData:
+def _align(data: StitchingData, cfg: AlignConfig, device: torch.device) -> StitchingData:
     try:
-        attempts = _adaptive_sycle(data, cfg)
+        attempts = _adaptive_sycle(data, cfg, device=device)
     except Exception as e:
         logger.error(f"Adaptive alignment failed: {str(e)}")
 
@@ -156,7 +154,7 @@ def _align(data: StitchingData, cfg: AlignConfig) -> StitchingData:
     return best_data
 
 
-def _simple_CUBA_iteration(data: StitchingData, cfg: AlignConfig):
+def _simple_CUBA_iteration(data: StitchingData, cfg: AlignConfig, device: torch.device):
 
     data = matches_alignment(
         data.copy(), cfg.transformation_type, cfg.confidence_threshold,
@@ -179,7 +177,7 @@ def _simple_CUBA_iteration(data: StitchingData, cfg: AlignConfig):
     return final_rmse, data
 
 
-def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
+def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig, device: torch.device):
     attempts = {}
     current_min_inliers = cfg.min_inliers_for_accept
     if cfg.adaptive:
@@ -197,7 +195,7 @@ def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
         try:
             current_cfg = cfg.copy()
             current_cfg.min_inliers_for_accept = current_min_inliers
-            error, temp_data = _simple_CUBA_iteration(data, current_cfg)
+            error, temp_data = _simple_CUBA_iteration(data, current_cfg, device)
 
             has_dropped = temp_data.num_dropped_images > 0
             has_high_error = error > error_threshold
@@ -238,11 +236,12 @@ def _adaptive_sycle_CUBA(data: StitchingData, cfg: AlignConfig):
 
 def _CUBA(  # Custom Undistortion Bundle Adjustment
     data: StitchingData,
-    cfg: AlignConfig
+    cfg: AlignConfig,
+    device: torch.device,
 ) -> TileSet:
 
     try:
-        attempts = _adaptive_sycle_CUBA(data, cfg)
+        attempts = _adaptive_sycle_CUBA(data, cfg, device=device)
     except Exception as e:
         logger.error(f"Adaptive alignment failed: {str(e)}")
 

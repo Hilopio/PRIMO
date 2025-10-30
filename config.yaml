@@ -56,15 +56,15 @@ blending:
 #   cache_dir: "/home/g.nikolaev/data/big_panoramas_collection/cache"
 #   panoramas_dir: "/home/g.nikolaev/data/big_panoramas_collection/results"
 
-# dirs:
-#   tiles_dir: "/home/g.nikolaev/data/small_panoramas_collection/tiles"
-#   cache_dir: "/home/g.nikolaev/data/small_panoramas_collection/cache"
-#   panoramas_dir: "/home/g.nikolaev/data/small_panoramas_collection/results"
-
 dirs:
-  tiles_dir: "/home/g.nikolaev/data/classic_collection/tiles"
-  cache_dir: "/home/g.nikolaev/data/classic_collection/cache"
-  panoramas_dir: "/home/g.nikolaev/data/classic_collection/results"
+  tiles_dir: "/home/g.nikolaev/data/small_panoramas_collection/tiles"
+  cache_dir: "/home/g.nikolaev/data/small_panoramas_collection/cache"
+  panoramas_dir: "/home/g.nikolaev/data/small_panoramas_collection/results2"
+
+# dirs:
+#   tiles_dir: "/home/g.nikolaev/data/classic_collection/tiles"
+#   cache_dir: "/home/g.nikolaev/data/classic_collection/cache"
+#   panoramas_dir: "/home/g.nikolaev/data/classic_collection/results"
 
 # dirs:
 #   tiles_dir: "/home/g.nikolaev/data/one_distorted/tiles"
@@ -83,6 +83,6 @@ load_matches: False
 custom_undistortion: True
 n_undistortions: 1
 # stitching_mode: 'save_matches'
-stitching_mode: 'collage'
-# stitching_mode: 'full'
+# stitching_mode: 'collage'
+stitching_mode: 'full'
 # adaptive_alignment: True
