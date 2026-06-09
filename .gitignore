@@ -1,11 +1,16 @@
 # This branch (`release`) is the public showroom for github.com/Hilopio/PRIMO.
-# It must contain ONLY documentation. Everything else is ignored so that a
-# plain `git add .` can never leak source code, the wheel, or dev leftovers
-# into the showroom repo. Development happens on other branches, where these
-# files are tracked and therefore unaffected by this ignore list.
+# It must contain ONLY documentation and one small sample dataset. Everything
+# else is ignored so that a plain `git add .` can never leak source code, the
+# wheel, or dev leftovers into the showroom repo. Development happens on other
+# branches, where these files are tracked and therefore unaffected by this list.
 /*
 !.gitignore
 !LICENSE
 !NOTICE
 !README.md
 !THIRD_PARTY_LICENSES.md
+
+# Ship one lightweight example (~9 MB) so users can try `primo-stitch` at once.
+!examples/
+examples/*
+!examples/metal_series/
