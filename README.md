@@ -1,30 +1,41 @@
 # PRIMO: Panoramic Reconstruction with Integrated Microscopy-Specific Optimization
 
-Python library and command-line tool for stitching a set of overlapping tiles
-into a single 2D panorama.
+PRIMO stitches a set of overlapping tiles into a single 2D panorama. This
+repository hosts the release wheel and documentation — download it, install it,
+and run the `primo-stitch` command.
 
-## Installation
+## Install
+
+1. **Python 3.10–3.12** is required (3.13 is not supported yet). With
+   [`uv`](https://docs.astral.sh/uv/) you can provision a compatible interpreter
+   without touching your system Python:
+   ```bash
+   uv venv --python 3.12
+   ```
+2. Download the latest wheel (`primo_stitch-<version>-py3-none-any.whl`) from the
+   [Releases](https://github.com/Hilopio/PRIMO/releases) page.
+3. Install it — dependencies are pulled from PyPI automatically:
+   ```bash
+   pip install ./primo_stitch-0.1.0-py3-none-any.whl
+   # or:  uv pip install ./primo_stitch-0.1.0-py3-none-any.whl
+   ```
+
+Notes:
+- PRIMO depends on **PyTorch**. The default install pulls the CPU build; for GPU,
+  install the CUDA build of `torch`/`torchvision` first (see https://pytorch.org),
+  then install PRIMO.
+- Matcher weights download automatically on first use (Hugging Face Hub / Torch
+  Hub) and are cached locally.
+
+After installing you get the `primo-stitch` command and the importable `primo`
+package.
+
+## Run
+
+Point `--tile_dir` at a folder of overlapping tiles:
 
 ```bash
-pip install primo-stitch
-```
-
-- Requires **Python 3.10–3.12**.
-- PRIMO depends on **PyTorch**. The default install pulls the CPU build; for GPU
-  use, install the CUDA build of `torch`/`torchvision` first (see
-  https://pytorch.org), then install PRIMO.
-- Matcher weights are downloaded automatically on first use (Hugging Face Hub /
-  Torch Hub) and cached locally.
-
-After installation you get the `primo-stitch` command and the importable
-`primo` package (install name `primo-stitch`, import name `primo`).
-
-## Command-line usage
-
-`primo-stitch` is the main entry point.
-
-```bash
-# minimal — stitch a folder of tiles into a panorama
+# minimal
 primo-stitch --tile_dir path/to/tiles --output_file panorama.png
 
 # advanced
@@ -35,14 +46,15 @@ primo-stitch \
   --device cuda:0 \
   --blending_mode full \
   --inference_size 0.5 \
-  --batch_size 8 \
-  --cache_dir cache/ \
-  --logfile run.log
+  --batch_size 8
 ```
 
 > By default (`full` blending with `--save_alpha_channel` on), the panorama is
 > written as **`.png`** (RGBA) regardless of the requested extension. Pass
 > `--no-save_alpha_channel` to save a `.jpg`.
+
+Add `--online` to write a live `status.json` and `preview.jpg` while processing;
+a streaming variant is also available as `primo-stitch-online`.
 
 ### Options
 
@@ -80,20 +92,13 @@ stitcher = Stitcher(
 
 stitcher.stitch(
     input_dir='path/to/tiles',
-    output_file='panorama.jpg',
+    output_file='panorama.png',
     cache_dir='cache',
 )
 ```
 
 `Matcher` and `Stitcher` expose additional keyword arguments (alignment,
 photometric correction, blending) — see their signatures for the full set.
-
-## Demo
-
-The interactive demo (live preview + machine-readable progress) is driven by
-`primo-stitch-online` and the `run_online.sh` wrapper. For normal use they are
-not needed; `primo-stitch` can also emit progress by adding `--online`, which
-writes a `status.json` and a `preview.jpg` while processing.
 
 ## Authors
 
