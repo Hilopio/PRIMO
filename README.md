@@ -1,24 +1,33 @@
 # PRIMO: Panoramic Reconstruction with Integrated Microscopy-Specific Optimization
 
-PRIMO stitches a set of overlapping tiles into a single 2D panorama. This
-repository hosts the release wheel and documentation — download it, install it,
-and run the `primo-stitch` command.
+[![PyPI](https://img.shields.io/pypi/v/primo-stitch)](https://pypi.org/project/primo-stitch/)
+[![Python](https://img.shields.io/pypi/pyversions/primo-stitch)](https://pypi.org/project/primo-stitch/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
+PRIMO stitches a set of overlapping tiles into a single 2D panorama. The
+package is published on PyPI as
+[`primo-stitch`](https://pypi.org/project/primo-stitch/) — install it and run
+the `primo-stitch` command.
 
 ## Install
 
-1. **Python 3.10–3.12** is required (3.13 is not supported yet). With
-   [`uv`](https://docs.astral.sh/uv/) you can provision a compatible interpreter
-   without touching your system Python:
-   ```bash
-   uv venv --python 3.12
-   ```
-2. Download the latest wheel (`primo_stitch-<version>-py3-none-any.whl`) from the
-   [Releases](https://github.com/Hilopio/PRIMO/releases) page.
-3. Install it — dependencies are pulled from PyPI automatically:
-   ```bash
-   pip install ./primo_stitch-0.1.0-py3-none-any.whl
-   # or:  uv pip install ./primo_stitch-0.1.0-py3-none-any.whl
-   ```
+**Python 3.10–3.12** is required (3.13 is not supported yet). With
+[`uv`](https://docs.astral.sh/uv/) you can provision a compatible interpreter
+without touching your system Python:
+
+```bash
+uv venv --python 3.12
+```
+
+Install from PyPI:
+
+```bash
+pip install primo-stitch
+# or:  uv pip install primo-stitch
+```
+
+Pre-built wheels are also available on the
+[Releases](https://github.com/Hilopio/PRIMO/releases) page.
 
 Notes:
 - PRIMO depends on **PyTorch**. The default install pulls the CPU build; for GPU,
@@ -54,7 +63,8 @@ primo-stitch \
 > `--no-save_alpha_channel` to save a `.jpg`.
 
 Add `--online` to write a live `status.json` and `preview.jpg` while processing;
-a streaming variant is also available as `primo-stitch-online`.
+a streaming variant tailored to the web demo is also available as
+`primo-stitch-online` (see below).
 
 ### Options
 
@@ -69,7 +79,29 @@ a streaming variant is also available as `primo-stitch-online`.
 | `--inference_size` | `0.3` | Matcher input scale relative to the original (`0.25`, `0.5`, `1`, ...) |
 | `--batch_size` | `1` | Matcher batch size (higher = faster, more memory) |
 | `--save_alpha_channel` / `--no-save_alpha_channel` | on | Save the transparency channel; forces `.png` output in `full` mode |
+| `--online` | off | Write a live status file and geometric preview while processing |
+| `--status_file` | `status.json` | Path to the machine-readable status JSON (online mode) |
+| `--preview_file` | `preview.jpg` | Path to the geometric preview image (online mode) |
 | `--logfile` | *(none)* | Write a debug log to this file |
+
+### `primo-stitch-online`
+
+`primo-stitch-online` is a streaming variant tailored to the web demo: online
+reporting is always on, the output must be `.jpg` (so `--save_alpha_channel`
+is off and unsupported), and the preview must be `.webp`
+(`--preview_file` defaults to `preview.webp`). It accepts the same options as
+above (minus `--online`) plus:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--use_grid_info` | `false` | Use the grid (row/col) layout to match only neighbouring tile pairs; faster matching |
+| `--panorama_quality` | `95` | JPEG quality of the final panorama (0–100) |
+| `--preview_quality` | `70` | WebP quality of the geometric preview (0–100) |
+| `--preview_scale` | `0.25` | Downscale factor for the geometric preview |
+| `--memlog_file` | *(none)* | Sample process memory and save a usage chart to this image file |
+
+Its `--inference_size` also accepts an explicit pixel size as
+`"(WIDTH, HEIGHT)"` in addition to a scale factor.
 
 ## Python API
 
