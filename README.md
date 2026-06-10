@@ -26,8 +26,12 @@ pip install primo-stitch
 # or:  uv pip install primo-stitch
 ```
 
-Pre-built wheels are also available on the
-[Releases](https://github.com/Hilopio/PRIMO/releases) page.
+Alternatively, install the pre-built wheel from the
+[Releases](https://github.com/Hilopio/PRIMO/releases) page:
+
+```bash
+pip install https://github.com/Hilopio/PRIMO/releases/download/v0.1.2/primo_stitch-0.1.2-py3-none-any.whl
+```
 
 Notes:
 - PRIMO depends on **PyTorch**. The default install pulls the CPU build; for GPU,
@@ -62,46 +66,20 @@ primo-stitch \
 > written as **`.png`** (RGBA) regardless of the requested extension. Pass
 > `--no-save_alpha_channel` to save a `.jpg`.
 
-Add `--online` to write a live `status.json` and `preview.jpg` while processing;
-a streaming variant tailored to the web demo is also available as
-`primo-stitch-online` (see below).
-
 ### Options
 
 | Flag | Default | Description |
 |---|---|---|
 | `--tile_dir` | *(required)* | Directory with the input tiles |
 | `--output_file` | `panorama.jpg` | Output panorama path (extension may be adjusted, e.g. `.png` when alpha is saved) |
-| `--cache_dir` | `cache/` | Cache directory (created automatically) |
+| `--cache_dir` | `.cache/` | Directory for intermediate results (created automatically, cleaned up after the run) |
 | `--matcher` | `xfeat` | `xfeat` \| `efficient loftr` \| `loftr` |
 | `--device` | `cpu` | `cpu`, `cuda`, `cuda:0`, ... |
 | `--blending_mode` | `full` | `collage` \| `mosaic` \| `full` |
 | `--inference_size` | `0.3` | Matcher input scale relative to the original (`0.25`, `0.5`, `1`, ...) |
 | `--batch_size` | `1` | Matcher batch size (higher = faster, more memory) |
 | `--save_alpha_channel` / `--no-save_alpha_channel` | on | Save the transparency channel; forces `.png` output in `full` mode |
-| `--online` | off | Write a live status file and geometric preview while processing |
-| `--status_file` | `status.json` | Path to the machine-readable status JSON (online mode) |
-| `--preview_file` | `preview.jpg` | Path to the geometric preview image (online mode) |
 | `--logfile` | *(none)* | Write a debug log to this file |
-
-### `primo-stitch-online`
-
-`primo-stitch-online` is a streaming variant tailored to the web demo: online
-reporting is always on, the output must be `.jpg` (so `--save_alpha_channel`
-is off and unsupported), and the preview must be `.webp`
-(`--preview_file` defaults to `preview.webp`). It accepts the same options as
-above (minus `--online`) plus:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--use_grid_info` | `false` | Use the grid (row/col) layout to match only neighbouring tile pairs; faster matching |
-| `--panorama_quality` | `95` | JPEG quality of the final panorama (0–100) |
-| `--preview_quality` | `70` | WebP quality of the geometric preview (0–100) |
-| `--preview_scale` | `0.25` | Downscale factor for the geometric preview |
-| `--memlog_file` | *(none)* | Sample process memory and save a usage chart to this image file |
-
-Its `--inference_size` also accepts an explicit pixel size as
-`"(WIDTH, HEIGHT)"` in addition to a scale factor.
 
 ## Python API
 
@@ -125,9 +103,12 @@ stitcher = Stitcher(
 stitcher.stitch(
     input_dir='path/to/tiles',
     output_file='panorama.png',
-    cache_dir='cache',
 )
 ```
+
+Intermediate results are stored in a cache directory (`.cache/` by default,
+override with `cache_dir=...`); it is created automatically and cleaned up
+after stitching finishes.
 
 `Matcher` and `Stitcher` expose additional keyword arguments (alignment,
 photometric correction, blending) — see their signatures for the full set.
