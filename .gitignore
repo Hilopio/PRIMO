@@ -9,6 +9,7 @@
 !NOTICE
 !README.md
 !THIRD_PARTY_LICENSES.md
+!github_images/
 
 # Ship one lightweight example (~9 MB) so users can try `primo-stitch` at once.
 !examples/

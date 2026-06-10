@@ -9,6 +9,8 @@ package is published on PyPI as
 [`primo-stitch`](https://pypi.org/project/primo-stitch/) — install it and run
 the `primo-stitch` command.
 
+![Examples of panoramas stitched by PRIMO (PanoMic dataset)](github_images/PanoMic.jpg)
+
 ## Install
 
 **Python 3.10–3.12** is required (3.13 is not supported yet). With
@@ -80,6 +82,10 @@ primo-stitch \
 | `--batch_size` | `1` | Matcher batch size (higher = faster, more memory) |
 | `--save_alpha_channel` / `--no-save_alpha_channel` | on | Save the transparency channel; forces `.png` output in `full` mode |
 | `--logfile` | *(none)* | Write a debug log to this file |
+
+## How it works
+
+![Overview of the PRIMO stitching pipeline](github_images/PRIMO.png)
 
 ## Python API
 
