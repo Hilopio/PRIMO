@@ -4,54 +4,31 @@
 [![Python](https://img.shields.io/pypi/pyversions/primo-stitch)](https://pypi.org/project/primo-stitch/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-PRIMO stitches a set of overlapping tiles into a single 2D panorama. The
-package is published on PyPI as
-[`primo-stitch`](https://pypi.org/project/primo-stitch/) — install it and run
-the `primo-stitch` command.
+PRIMO is a modern method and Python library for stitching flat 2D panoramas
+across imaging modalities, primarily microscopy. Available on PyPI as
+[`primo-stitch`](https://pypi.org/project/primo-stitch/).
 
-![Examples of panoramas stitched by PRIMO (PanoMic dataset)](github_images/PanoMic.jpg)
+![Flow chart of the PRIMO method](github_images/PRIMO.png)
+*Flow chart of the PRIMO method*
 
-## Install
-
-**Python 3.10–3.12** is required (3.13 is not supported yet). With
-[`uv`](https://docs.astral.sh/uv/) you can provision a compatible interpreter
-without touching your system Python:
-
-```bash
-uv venv --python 3.12
-```
-
-Install from PyPI:
+## Installation
 
 ```bash
 pip install primo-stitch
-# or:  uv pip install primo-stitch
 ```
 
-Alternatively, install the pre-built wheel from the
-[Releases](https://github.com/Hilopio/PRIMO/releases) page:
+- Python 3.10–3.14.
+- If you use a GPU, make sure you have a CUDA-enabled PyTorch
+  ([pytorch.org](https://pytorch.org)).
+- Model weights are downloaded on the first run — internet access is required.
+
+## Command-line usage
+
+`primo-stitch` is the main entry point.
 
 ```bash
-pip install https://github.com/Hilopio/PRIMO/releases/download/v0.1.2/primo_stitch-0.1.2-py3-none-any.whl
-```
-
-Notes:
-- PRIMO depends on **PyTorch**. The default install pulls the CPU build; for GPU,
-  install the CUDA build of `torch`/`torchvision` first (see https://pytorch.org),
-  then install PRIMO.
-- Matcher weights download automatically on first use (Hugging Face Hub / Torch
-  Hub) and are cached locally.
-
-After installing you get the `primo-stitch` command and the importable `primo`
-package.
-
-## Run
-
-Point `--tile_dir` at a folder of overlapping tiles:
-
-```bash
-# minimal
-primo-stitch --tile_dir path/to/tiles --output_file panorama.png
+# minimal — stitch a folder of tiles into a panorama
+primo-stitch --tile_dir path/to/tiles --output_file panorama.jpg
 
 # advanced
 primo-stitch \
@@ -61,12 +38,9 @@ primo-stitch \
   --device cuda:0 \
   --blending_mode full \
   --inference_size 0.5 \
-  --batch_size 8
+  --batch_size 8 \
+  --logfile run.log
 ```
-
-> By default (`full` blending with `--save_alpha_channel` on), the panorama is
-> written as **`.png`** (RGBA) regardless of the requested extension. Pass
-> `--no-save_alpha_channel` to save a `.jpg`.
 
 ### Options
 
@@ -77,15 +51,11 @@ primo-stitch \
 | `--cache_dir` | `.cache/` | Directory for intermediate results (created automatically, cleaned up after the run) |
 | `--matcher` | `xfeat` | `xfeat` \| `efficient loftr` \| `loftr` |
 | `--device` | `cpu` | `cpu`, `cuda`, `cuda:0`, ... |
-| `--blending_mode` | `full` | `collage` \| `mosaic` \| `full` |
+| `--blending_mode` | `full` | `collage` — fast paste-over, no correction; `mosaic` — photocorrection + hard seams, no blending; `full` — photocorrection + seams + multiband blending |
 | `--inference_size` | `0.3` | Matcher input scale relative to the original (`0.25`, `0.5`, `1`, ...) |
 | `--batch_size` | `1` | Matcher batch size (higher = faster, more memory) |
-| `--save_alpha_channel` / `--no-save_alpha_channel` | on | Save the transparency channel; forces `.png` output in `full` mode |
+| `--save_alpha_channel` / `--no-save_alpha_channel` | off | Save the transparency channel; forces `.png` output in `full` mode |
 | `--logfile` | *(none)* | Write a debug log to this file |
-
-## How it works
-
-![Overview of the PRIMO stitching pipeline](github_images/PRIMO.png)
 
 ## Python API
 
@@ -103,18 +73,13 @@ matcher = Matcher(
 stitcher = Stitcher(
     matcher,
     blending_mode='full',     # 'collage' | 'mosaic' | 'full'
-    save_alpha_channel=True,
 )
 
 stitcher.stitch(
     input_dir='path/to/tiles',
-    output_file='panorama.png',
+    output_file='panorama.jpg',
 )
 ```
-
-Intermediate results are stored in a cache directory (`.cache/` by default,
-override with `cache_dir=...`); it is created automatically and cleaned up
-after stitching finishes.
 
 `Matcher` and `Stitcher` expose additional keyword arguments (alignment,
 photometric correction, blending) — see their signatures for the full set.
@@ -126,6 +91,9 @@ photometric correction, blending) — see their signatures for the full set.
 - Dmitriy Korshunov — Geological Institute of the Russian Academy of Sciences
 - Andrey Krylov — Lomonosov Moscow State University
 - Alexander Khvostikov (corresponding author) — Lomonosov Moscow State University
+
+![Examples of panoramas built in different modalities with PRIMO](github_images/PanoMic.jpg)
+*Examples of panoramas built in different modalities with the PRIMO method*
 
 ## Citation
 
@@ -144,8 +112,5 @@ credit the authors:
 
 ## License
 
-PRIMO's source code is licensed under the [Apache License 2.0](LICENSE). It
-bundles third-party components under their own licenses (Apache-2.0, MIT); see
+[Apache-2.0](LICENSE); bundled third-party components — see
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
-
-Any accompanying publication is licensed separately from this software.
